@@ -1,0 +1,47 @@
+{
+  "name": "dsh-plugin-minecraft",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Let DeepSeek Harness play Minecraft: connects DSH to the mc-agent-mcp mod (MCP server inside the game) with zero configuration.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ArchitektSpeer/mc-agent-mcp.git",
+    "directory": "dsh-plugin"
+  },
+  "homepage": "https://github.com/ArchitektSpeer/mc-agent-mcp/tree/main/dsh-plugin#readme",
+  "bugs": "https://github.com/ArchitektSpeer/mc-agent-mcp/issues",
+  "exports": {
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "cordis.patch.yml",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "minecraft",
+    "mcp",
+    "ai-agent"
+  ],
+  "license": "MIT",
+  "author": "ArchitektSpeer",
+  "peerDependencies": {
+    "@deepseek-ai/dsh": ">=0.1.7-rc.1 <0.1.8"
+  },
+  "devDependencies": {
+    "js-yaml": "^4.1.0"
+  }
+}
