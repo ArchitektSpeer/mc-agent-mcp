@@ -61,8 +61,16 @@ public final class ToolPolicy {
 
 	/** Whether the tool is exposed in tools/list and callable at all. */
 	public boolean isExposed(McpTool tool) {
-		if (tool.category() == ToolCategory.CONTROL) return true;
-		return enabled.getOrDefault(tool.category(), true) && !disabledTools.contains(tool.name());
+		return allows(tool.name(), tool.category());
+	}
+
+	/**
+	 * Whether the owner allows what the named tool does. Built-in reflexes use this with the
+	 * tool they imitate, so disabling e.g. {@code attack_entity} also disables auto-defence.
+	 */
+	public boolean allows(String toolName, ToolCategory category) {
+		if (category == ToolCategory.CONTROL) return true;
+		return enabled.getOrDefault(category, true) && !disabledTools.contains(toolName);
 	}
 
 	/** Permission + rate check for one call; consumes rate tokens only when the call is allowed. */

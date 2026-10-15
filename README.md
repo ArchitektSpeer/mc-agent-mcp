@@ -16,8 +16,11 @@ survival on its own: walk, mine, build, fight, eat, craft, smelt, use chests and
 
 ## Features
 
-- **26 tools** covering perception, movement, interaction, inventory, crafting and chat
+- **29 tools** covering perception, movement, interaction, inventory, crafting and chat
   ([reference](#tools)).
+- **Survival reflexes for slow models**: the mod defends, evades creepers, eats, equips armor
+  and swims up every tick (50 ms), so an agent that needs seconds per turn is not killed while
+  it thinks ([details](#survival-reflexes)).
 - **Built for LLMs**: readable ASCII block maps, nearest-first entity lists, recipe lookup that
   says whether a crafting table is needed, errors that tell the agent what to do next
   ("out of reach; move closer").
@@ -60,6 +63,19 @@ how crafting works.
 Other clients (Claude Desktop via `mcp-remote`, Cursor, custom agents, …) use the same URL and
 header.
 
+**Example agent (DeepSeek or any OpenAI-compatible API)**
+
+[`examples/deepseek_agent.py`](examples/deepseek_agent.py) is a standalone agent loop (Python
+standard library only). It injects a fresh `observe` into every turn, keeps the context short and
+lets the model call several tools per turn, which suits fast, inexpensive models:
+
+```bash
+export DEEPSEEK_API_KEY=sk-...
+python3 examples/deepseek_agent.py --model <model id from your provider> \
+  --goal "Gather wood, craft a wooden pickaxe, then mine 10 cobblestone."
+# --base-url for other OpenAI-compatible APIs, --config if .minecraft is elsewhere
+```
+
 **Smoke test with curl**
 
 ```bash
@@ -88,6 +104,8 @@ options show up automatically. Edit it while the game is closed.
   "disablePauseOnLostFocus": true,
   "permissions": { "perception": true, "movement": true, "interaction": true, "inventory": true, "chat": true },
   "disabledTools": [],
+  "reflexes": { "autoDefend": true, "evadeCreepers": true, "chargeRanged": true, "autoEat": true,
+                "autoArmor": true, "escapeFluids": true, "interruptOnDamage": true, "eatBelowFood": 14 },
   "rateLimits": {
     "global":      { "perSecond": 20,  "burst": 40 },
     "perception":  { "perSecond": 0,   "burst": 0 },
@@ -108,6 +126,7 @@ options show up automatically. Edit it while the game is closed.
 | `disablePauseOnLostFocus` | keep the game running unfocused, so the agent can play in the background |
 | `permissions.<category>` | `false` hides every tool of that category (see the table below) |
 | `disabledTools` | tool names to hide, e.g. `["attack_entity", "chat"]` |
+| `reflexes.*` | per-tick survival reflexes, see [Survival reflexes](#survival-reflexes) |
 | `rateLimits.global` | token bucket shared by all non-control calls |
 | `rateLimits.<category>` | extra bucket per category; `perSecond: 0` = unlimited |
 
@@ -140,6 +159,7 @@ perception, `destructiveHint` for interaction and inventory).
 | `get_container` | perception | open menu (chest, furnace, crafting table, own inventory) by slot and section |
 | `get_recipes` | perception | unlocked recipes: ingredients, station, craftable right now |
 | `move` | movement | hold W/A/S/D/jump/sneak/sprint for N ticks, optionally face a yaw first |
+| `go_to` | movement | walk to a position or entity: sprints, jumps steps, stops before lava/cliffs and when hurt |
 | `look` | movement | set yaw/pitch, or face a block or entity |
 | `break_block` | interaction | mine a block until it breaks |
 | `place_block` | interaction | place the held block into an empty cell (support face chosen automatically) |
@@ -152,8 +172,43 @@ perception, `destructiveHint` for interaction and inventory).
 | `transfer_items` | inventory | shift-click stacks between container and inventory |
 | `craft` | inventory | craft N items via the recipe book (2x2 grid, or an opened crafting table) |
 | `chat` | chat | send chat; `/commands` only with `allowCommands` |
-| `stop` | control | release all keys, cancel mining/crafting, optionally close the GUI |
+| `stop` | control | release all keys, cancel mining/crafting/walking, optionally close the GUI |
+| `batch` | control | run up to 8 tool calls in order in one request (each step is permission/rate checked) |
+| `set_reflexes` | control | read or toggle the survival reflexes at runtime |
 | `ping` | control | liveness check |
+
+### Survival reflexes
+
+An LLM needs seconds per decision; a zombie hits every second and a creeper explodes 1.5 s after
+it starts hissing. So the mod reacts on its own, every tick, between the agent's turns:
+
+| Reflex | What it does |
+|---|---|
+| `autoDefend` | hits hostile mobs in melee reach with the best hotbar sword/axe when the cooldown is full, then switches back |
+| `evadeCreepers` | hits a close creeper (knockback), turns away and sprints until it is out of blast range |
+| `chargeRanged` | rushes skeletons/strays/pillagers/witches in line of sight while health ≥ 8 (archers win at range) |
+| `autoEat` | eats the best safe hotbar food when hungry and no enemy is within 6 blocks (never rotten flesh; golden food only in emergencies) |
+| `autoArmor` | moves armor from the inventory into empty armor slots, best material first |
+| `escapeFluids` | swims up when air runs low, jumps out of lava |
+| `interruptOnDamage` | a running `move`/`go_to`/`break_block` returns at once with `interrupted: took damage from …` |
+
+`observe` reports `threats` (hostiles within 16 blocks, nearest first, `hissing` for creepers)
+and `events` (damage taken, what the reflexes did, kills) since the previous `observe`; movement
+results carry `threats` too. Each reflex only runs if the owner allows the tool it imitates, so
+`permissions.interaction: false` or `"disabledTools": ["attack_entity"]` also disables
+auto-defence. The agent can switch reflexes off with `set_reflexes` to fight by hand.
+
+Measured on a Normal-difficulty server at night with an **idle** agent (stone sword and bread in
+the hotbar, no armor), mobs spawned 5 blocks away:
+
+| Scenario | Reflexes off | Reflexes on |
+|---|---|---|
+| 1 creeper | 1 HP left | no damage |
+| 3 creepers | – | no damage |
+| 3 zombies | dead in 9 s | all killed, lowest 14 HP |
+| 6 zombies | – | all killed, lowest 15 HP |
+| 2 skeletons | dead in 15 s | usually both killed, lowest 3–10 HP |
+| 4 husks | – | all killed, lowest 4.7 HP |
 
 ### Reading blocks
 
@@ -262,7 +317,8 @@ src/client/java/com/mcagent/mcp/client/
   McAgentClient.java          entrypoint: wiring, lifecycle, agent playbook
   GameBridge.java             client-thread dispatch
   ChatLog.java                bounded chat log
-  control/AgentControl.java   timed actions: held keys, use key, mining, menu scripts
+  control/AgentControl.java   timed actions: held keys, use key, mining, menu scripts, go_to
+  reflex/                     per-tick survival reflexes + pure weapon/food/armor choice
   blocks/                     scanner, codecs, change tracker
   inventory/                  menu reader, recipe book, crafting task, pure transfer logic
   mixin/                      ClientLevel, KeyboardInput, Minecraft hooks
@@ -278,14 +334,15 @@ checks/                       offline test suite
 
 | Check | Covers |
 |---|---|
-| `ProtocolTest` | initialize/session/instructions, tools/list (hidden tools, annotations), tools/call, `isError`, JSON-RPC errors, batches, 401, 403 `Origin`, 413, permission denial, rate limiting, 202, 405, DELETE |
+| `ProtocolTest` | initialize/session/instructions, tools/list (hidden tools, annotations), tools/call, `isError`, JSON-RPC errors, batches, the `batch` tool (order, stop on denied step, no nesting), 401, 403 `Origin`, 413, permission denial, rate limiting, 202, 405, DELETE |
 | `SseSelfTest` | SSE push end to end, concurrent POST while streaming, DELETE closing streams |
 | `CodecTest` | `rle` round-trip, `layers` geometry/legend, `json` air skipping |
 | `DiffLogicTest` | baseline, appeared/removed, chunk unload, overflow → resync, sparse air |
 | `ArgsTest` | argument validation, chat log paging |
 | `InventoryMathTest` | transfer stack selection, 2x2 vs 3x3 grid fit, item id normalisation |
-| `PolicyTest` | token bucket timing (fake clock), permissions, control exemption, config parse/round-trip |
-| `ToolSchemaTest` | all 26 tools: unique names, category set, well-formed JSON Schema |
+| `PolicyTest` | token bucket timing (fake clock), permissions, control exemption, config parse/round-trip, reflex settings |
+| `ReflexMathTest` | weapon DPS ranking, food choice (gap filling, unsafe/precious food), armor tiers |
+| `ToolSchemaTest` | all 29 tools: unique names, category set, well-formed JSON Schema |
 
 ### In-game testing
 
@@ -314,7 +371,9 @@ tool has been exercised this way in survival.
 - **M5** ✅ actuation: move, look, mine, place, interact, attack, use, chat, respawn, stop
 - **M6** ✅ containers and recipe-book crafting
 - **M7** ✅ hardening: permissions, rate limits, request limits, tool annotations, bilingual docs
-- **Next**: example agent and demo video; optional `pathfind_to` via Baritone (LGPL, kept as an
+- **M8** ✅ playable by fast/cheap models: survival reflexes, interrupt on damage, `go_to`, `batch`,
+  threats/events in `observe`, example DeepSeek agent
+- **Next**: demo video; optional `pathfind_to` via Baritone (LGPL, kept as an
   external dependency)
 
 ## License

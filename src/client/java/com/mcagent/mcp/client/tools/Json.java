@@ -2,6 +2,7 @@ package com.mcagent.mcp.client.tools;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.mcagent.mcp.client.reflex.Reflexes;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -55,6 +56,9 @@ final class Json {
 		o.addProperty("pitch", round2(p.getXRot()));
 		o.addProperty("onGround", p.onGround());
 		o.addProperty("health", p.getHealth());
+		o.addProperty("food", p.getFoodData().getFoodLevel());
+		JsonArray threats = Reflexes.describeThreats(net.minecraft.client.Minecraft.getInstance(), p, 3);
+		if (!threats.isEmpty()) o.add("threats", threats);
 		return o;
 	}
 }

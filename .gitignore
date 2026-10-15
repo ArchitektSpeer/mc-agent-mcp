@@ -24,3 +24,7 @@ eclipse/
 .project
 bin/
 .build-info.log
+
+# python
+__pycache__/
+*.pyc

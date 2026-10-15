@@ -54,6 +54,8 @@ public final class McAgentConfig {
 	/** Applies to every non-control tool call together. */
 	public Limit globalLimit = new Limit(20, 40);
 	public final Map<ToolCategory, Limit> limits = new EnumMap<>(ToolCategory.class);
+	/** Survival reflexes that act between the agent's turns. */
+	public final ReflexSettings reflexes = new ReflexSettings();
 
 	public McAgentConfig() {
 		for (ToolCategory c : ToolCategory.values()) {
@@ -110,6 +112,9 @@ public final class McAgentConfig {
 		if (o.has("disabledTools") && o.get("disabledTools").isJsonArray()) {
 			for (JsonElement e : o.getAsJsonArray("disabledTools")) cfg.disabledTools.add(e.getAsString());
 		}
+		if (o.has("reflexes") && o.get("reflexes").isJsonObject()) {
+			cfg.reflexes.apply(o.getAsJsonObject("reflexes"));
+		}
 		if (o.has("rateLimits") && o.get("rateLimits").isJsonObject()) {
 			for (var e : o.getAsJsonObject("rateLimits").entrySet()) {
 				if (!e.getValue().isJsonObject()) continue;
@@ -163,6 +168,7 @@ public final class McAgentConfig {
 		rl.add("global", limitJson(globalLimit));
 		limits.forEach((c, l) -> rl.add(c.key(), limitJson(l)));
 		o.add("rateLimits", rl);
+		o.add("reflexes", reflexes.toJson());
 		return o;
 	}
 

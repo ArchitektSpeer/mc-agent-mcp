@@ -1,9 +1,12 @@
 package com.mcagent.mcp.client.tools;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
+import com.mcagent.mcp.client.ChatLog;
 import com.mcagent.mcp.client.GameBridge;
 import com.mcagent.mcp.client.blocks.BlockScanner;
 import com.mcagent.mcp.client.control.AgentControl;
+import com.mcagent.mcp.client.reflex.Reflexes;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.Minecraft;
@@ -13,15 +16,23 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.EntityHitResult;
 import net.minecraft.world.phys.HitResult;
 
+import java.util.concurrent.atomic.AtomicLong;
+
 /**
  * Snapshot of the local player: position, rotation, health, food, dimension, world time.
  * Read-only; runs on the game thread via {@link GameBridge}.
  */
 public final class ObserveTool implements McpTool {
-	private final GameBridge bridge;
+	private static final int MAX_EVENTS = 12;
 
-	public ObserveTool(GameBridge bridge) {
+	private final GameBridge bridge;
+	private final ChatLog events;
+	/** Events are reported once: each observe returns what happened since the previous one. */
+	private final AtomicLong lastEventSeq = new AtomicLong();
+
+	public ObserveTool(GameBridge bridge, ChatLog events) {
 		this.bridge = bridge;
+		this.events = events;
 	}
 
 	@Override
@@ -38,7 +49,8 @@ public final class ObserveTool implements McpTool {
 	public String description() {
 		return "Observe the local player and world: position, rotation, health, hunger, armor, air, held item, "
 				+ "attack cooldown, open screen, crosshair target, dead flag, dimension, time of day, weather. "
-				+ "Call this first each turn. "
+				+ "Also 'threats' (hostile mobs within 16 blocks, nearest first) and 'events' (what happened since "
+				+ "the last observe: damage taken, reflex actions, kills). Call this first each turn. "
 				+ "Returns inWorld=false when no world is loaded.";
 	}
 
@@ -92,6 +104,14 @@ public final class ObserveTool implements McpTool {
 			if (mc.screen != null) o.addProperty("screen", mc.screen.getClass().getSimpleName());
 			o.add("crosshair", crosshair(mc));
 			if (AgentControl.instance != null) o.add("agent", AgentControl.instance.status());
+			o.add("threats", Reflexes.describeThreats(mc, p, 6));
+			if (events != null) {
+				JsonObject ev = events.since(lastEventSeq.get(), MAX_EVENTS);
+				lastEventSeq.set(ev.get("lastSeq").getAsLong());
+				JsonArray lines = new JsonArray();
+				for (var e : ev.getAsJsonArray("messages")) lines.add(e.getAsJsonObject().get("text"));
+				if (!lines.isEmpty()) o.add("events", lines);
+			}
 			return o;
 		});
 	}

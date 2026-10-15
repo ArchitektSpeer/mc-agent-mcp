@@ -12,6 +12,10 @@ import com.mcagent.mcp.client.tools.ClickSlotTool;
 import com.mcagent.mcp.client.tools.CraftTool;
 import com.mcagent.mcp.client.tools.GetContainerTool;
 import com.mcagent.mcp.client.tools.GetRecipesTool;
+import com.mcagent.mcp.client.tools.GoToTool;
+import com.mcagent.mcp.client.tools.SetReflexesTool;
+import com.mcagent.mcp.config.ReflexSettings;
+import com.mcagent.mcp.tools.BatchTool;
 import com.mcagent.mcp.client.tools.TransferItemsTool;
 import com.mcagent.mcp.client.tools.GetBlockChangesTool;
 import com.mcagent.mcp.client.tools.GetChatTool;
@@ -55,7 +59,7 @@ public class ToolSchemaTest {
 
 		List<McpTool> tools = new ArrayList<>();
 		tools.add(new PingTool());
-		tools.add(new ObserveTool(null));
+		tools.add(new ObserveTool(null, null));
 		tools.add(new GetBlocksTool(null, scanner));
 		tools.add(new ScanBlocksTool(null, scanner));
 		tools.add(new SubscribeBlocksTool(null, tracker));
@@ -81,6 +85,9 @@ public class ToolSchemaTest {
 		tools.add(new TransferItemsTool(null));
 		tools.add(new GetRecipesTool(null));
 		tools.add(new CraftTool(null, control));
+		tools.add(new GoToTool(null, control));
+		tools.add(new SetReflexesTool(new ReflexSettings()));
+		tools.add(new BatchTool((n, a) -> new JsonObject()));
 
 		// The registry is what tools/list is built from; make sure it accepts them all.
 		ToolRegistry registry = new ToolRegistry();

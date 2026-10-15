@@ -35,6 +35,13 @@ public final class AgentControl {
 	private Input heldInput;
 	private int moveTicksLeft;
 	private CompletableFuture<Boolean> moveDone;
+	/** The current hold was started by a reflex, not the agent: damage must not cancel it. */
+	private boolean reflexHold;
+
+	private GoToTask goTo;
+
+	/** Why the agent's last action was cut short (damage, a reflex); read by the action tools. */
+	private volatile String lastInterrupt;
 
 	private int useTicksLeft;
 	private CompletableFuture<Boolean> useDone;
@@ -57,16 +64,88 @@ public final class AgentControl {
 	/** Hold the given movement keys for {@code ticks} ticks. Game thread only. */
 	public CompletableFuture<Boolean> holdMovement(Input input, int ticks) {
 		finishMove(false);
+		cancelGoTo(Minecraft.getInstance().player, "replaced by move");
+		reflexHold = false;
+		lastInterrupt = null;
 		heldInput = input;
 		moveTicksLeft = ticks;
 		moveDone = new CompletableFuture<>();
 		return moveDone;
 	}
 
+	/**
+	 * A reflex takes over movement for a few ticks (backing off a creeper, swimming up).
+	 * The agent's own move/go_to is interrupted with {@code reason}.
+	 */
+	public void reflexMove(Input input, int ticks, String reason) {
+		interruptAgent(Minecraft.getInstance(), reason, false);
+		finishMove(false);
+		heldInput = input;
+		moveTicksLeft = ticks;
+		reflexHold = true;
+		moveDone = null;
+	}
+
+	/** Walk to a point or (when {@code point} is null) an entity; the future yields the result. */
+	public CompletableFuture<JsonObject> startGoTo(Vec3 point, int entityId, double stopDistance, int maxTicks) {
+		finishMove(false);
+		cancelGoTo(Minecraft.getInstance().player, "replaced by a new go_to");
+		lastInterrupt = null;
+		goTo = new GoToTask(point, entityId, stopDistance, maxTicks);
+		return goTo.done;
+	}
+
 	/** Called from the KeyboardInput mixin: the input to apply this tick, or null for the real keyboard. */
 	public static Input inputOverride() {
 		AgentControl c = instance;
-		return c != null && c.moveTicksLeft > 0 ? c.heldInput : null;
+		if (c == null) return null;
+		if (c.moveTicksLeft > 0) return withStepJump(c.heldInput);
+		return c.goTo != null ? c.goTo.input() : null;
+	}
+
+	/**
+	 * Like vanilla auto-jump: a held forward movement that runs into a one-block step jumps it,
+	 * so neither a fleeing reflex nor a "move forward" stalls at the rim of a hole.
+	 */
+	private static Input withStepJump(Input in) {
+		LocalPlayer p = Minecraft.getInstance().player;
+		if (in == null || in.jump() || !in.forward() || p == null || !p.horizontalCollision || !p.onGround()) {
+			return in;
+		}
+		return new Input(in.forward(), in.backward(), in.left(), in.right(), true, in.shift(), in.sprint());
+	}
+
+	/**
+	 * Cut the agent's running movement and mining short (e.g. it took damage), so its pending
+	 * tool call returns now and the model can react. Reflex movement is kept unless asked.
+	 */
+	public void interruptAgent(Minecraft mc, String reason, boolean includeBreaking) {
+		boolean any = false;
+		if (moveTicksLeft > 0 && !reflexHold) {
+			finishMove(false);
+			any = true;
+		}
+		if (goTo != null) {
+			cancelGoTo(mc.player, "interrupted: " + reason);
+			any = true;
+		}
+		if (includeBreaking && breakTask != null) {
+			cancelBreak(mc, "interrupted: " + reason);
+			any = true;
+		}
+		if (any) lastInterrupt = reason;
+	}
+
+	public String lastInterrupt() {
+		return lastInterrupt;
+	}
+
+	public boolean isUsingKey() {
+		return useTicksLeft > 0;
+	}
+
+	public boolean isBreakingBlock() {
+		return breakTask != null;
 	}
 
 	// ---- use key ---------------------------------------------------------------------
@@ -127,6 +206,9 @@ public final class AgentControl {
 		if (moveTicksLeft > 0 && --moveTicksLeft == 0) {
 			finishMove(true);
 		}
+		if (goTo != null && goTo.tick(mc) != null) {
+			goTo = null;
+		}
 		if (useTicksLeft > 0 && --useTicksLeft == 0) {
 			finishUse(mc, true);
 		}
@@ -150,7 +232,9 @@ public final class AgentControl {
 		o.addProperty("use", useTicksLeft > 0);
 		o.addProperty("breaking", breakTask != null);
 		o.addProperty("crafting", menuTask != null);
+		o.addProperty("goTo", goTo != null);
 		finishMove(false);
+		cancelGoTo(mc.player, "stopped");
 		finishUse(mc, false);
 		cancelBreak(mc, "stopped");
 		cancelMenuTask("stopped");
@@ -165,6 +249,7 @@ public final class AgentControl {
 			o.addProperty("breaking", breakTask.pos.getX() + "," + breakTask.pos.getY() + "," + breakTask.pos.getZ());
 		}
 		if (menuTask != null) o.addProperty("crafting", true);
+		if (goTo != null) o.addProperty("goTo", true);
 		return o;
 	}
 
@@ -179,9 +264,16 @@ public final class AgentControl {
 		return Direction.getApproximateNearest(d.x, d.y, d.z);
 	}
 
+	private void cancelGoTo(LocalPlayer p, String reason) {
+		if (goTo == null) return;
+		goTo.cancelled(p, reason);
+		goTo = null;
+	}
+
 	private void finishMove(boolean completed) {
 		moveTicksLeft = 0;
 		heldInput = null;
+		reflexHold = false;
 		if (moveDone != null) {
 			moveDone.complete(completed);
 			moveDone = null;
@@ -199,7 +291,7 @@ public final class AgentControl {
 		}
 	}
 
-	private void cancelBreak(Minecraft mc, String reason) {
+	public void cancelBreak(Minecraft mc, String reason) {
 		if (breakTask == null) return;
 		if (mc.gameMode != null) mc.gameMode.stopDestroyBlock();
 		finishBreak(false, reason);

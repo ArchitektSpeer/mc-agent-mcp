@@ -97,6 +97,14 @@ public final class McpProtocol {
 		return result;
 	}
 
+	/** Run one tool through the same checks as tools/call (used by the batch tool). */
+	public JsonObject invokeTool(String name, JsonObject args) {
+		JsonObject params = new JsonObject();
+		params.addProperty("name", name);
+		params.add("arguments", args);
+		return callTool(params);
+	}
+
 	private JsonObject callTool(JsonObject params) {
 		String name = params.has("name") && params.get("name").isJsonPrimitive()
 				? params.get("name").getAsString() : null;

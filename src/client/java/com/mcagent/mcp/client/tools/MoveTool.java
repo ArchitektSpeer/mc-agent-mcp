@@ -75,7 +75,10 @@ public final class MoveTool implements McpTool {
 		});
 		JsonObject o = new JsonObject();
 		if (wait) {
-			o.addProperty("completed", GameBridge.await(done, ticks * 50L + 5000));
+			boolean completed = GameBridge.await(done, ticks * 50L + 5000);
+			o.addProperty("completed", completed);
+			String why = control.lastInterrupt();
+			if (!completed && why != null) o.addProperty("interrupted", why);
 		} else {
 			o.addProperty("started", true);
 		}
