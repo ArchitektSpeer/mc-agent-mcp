@@ -1,0 +1,28 @@
+{
+	"schemaVersion": 1,
+	"id": "mcagent",
+	"version": "${version}",
+	"name": "MC Agent MCP",
+	"description": "Exposes an MCP (Model Context Protocol) server over Streamable HTTP so AI agents can perceive and play Minecraft.",
+	"authors": ["mc-agent-mcp contributors"],
+	"contact": {},
+	"license": "MIT",
+	"environment": "*",
+	"mixins": [
+		"mcagent.mixins.json"
+	],
+	"entrypoints": {
+		"main": [
+			"com.mcagent.mcp.McAgentMod"
+		],
+		"client": [
+			"com.mcagent.mcp.client.McAgentClient"
+		]
+	},
+	"depends": {
+		"fabricloader": ">=0.19.5",
+		"minecraft": "~1.21.11",
+		"java": ">=21",
+		"fabric-api": "*"
+	}
+}

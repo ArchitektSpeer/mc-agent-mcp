@@ -1,0 +1,26 @@
+# gradle
+.gradle/
+build/
+out/
+classes/
+
+# loom
+run/
+remappedSrc/
+
+# local toolchain / caches (sandbox-specific, not for VCS)
+.gradle-home/
+.jdk21/
+jdk21.tar.gz
+.build.log
+.harness/
+
+# ide
+.idea/
+*.iml
+.vscode/
+eclipse/
+.classpath
+.project
+bin/
+.build-info.log
