@@ -41,6 +41,17 @@ public final class AgentControl {
 
 	private BreakTask breakTask;
 
+	private TickTask menuTask;
+	private CompletableFuture<JsonObject> menuDone;
+
+	/** A multi-tick script driven by {@link #tick}; returns its result when finished, null while running. */
+	public interface TickTask {
+		JsonObject tick(Minecraft mc);
+
+		/** Result reported when the task is cancelled before finishing. */
+		JsonObject cancelled(String reason);
+	}
+
 	// ---- movement --------------------------------------------------------------------
 
 	/** Hold the given movement keys for {@code ticks} ticks. Game thread only. */
@@ -87,6 +98,24 @@ public final class AgentControl {
 		return c != null && c.breakTask != null;
 	}
 
+	// ---- menu scripts (crafting) -------------------------------------------------------
+
+	/** Run a menu script (e.g. crafting) one step per tick; replaces any running one. */
+	public CompletableFuture<JsonObject> startMenuTask(TickTask task) {
+		cancelMenuTask("interrupted by a new crafting request");
+		menuTask = task;
+		menuDone = new CompletableFuture<>();
+		return menuDone;
+	}
+
+	private void cancelMenuTask(String reason) {
+		if (menuTask == null) return;
+		JsonObject r = menuTask.cancelled(reason);
+		menuTask = null;
+		menuDone.complete(r);
+		menuDone = null;
+	}
+
 	// ---- lifecycle -------------------------------------------------------------------
 
 	/** Advance timed actions by one tick. END_CLIENT_TICK, game thread. */
@@ -104,6 +133,14 @@ public final class AgentControl {
 		if (breakTask != null) {
 			tickBreak(mc);
 		}
+		if (menuTask != null) {
+			JsonObject r = menuTask.tick(mc);
+			if (r != null) {
+				menuTask = null;
+				menuDone.complete(r);
+				menuDone = null;
+			}
+		}
 	}
 
 	/** Release every key and cancel every task. Returns a summary of what was stopped. */
@@ -112,9 +149,11 @@ public final class AgentControl {
 		o.addProperty("movement", moveTicksLeft > 0);
 		o.addProperty("use", useTicksLeft > 0);
 		o.addProperty("breaking", breakTask != null);
+		o.addProperty("crafting", menuTask != null);
 		finishMove(false);
 		finishUse(mc, false);
 		cancelBreak(mc, "stopped");
+		cancelMenuTask("stopped");
 		return o;
 	}
 
@@ -125,6 +164,7 @@ public final class AgentControl {
 		if (breakTask != null) {
 			o.addProperty("breaking", breakTask.pos.getX() + "," + breakTask.pos.getY() + "," + breakTask.pos.getZ());
 		}
+		if (menuTask != null) o.addProperty("crafting", true);
 		return o;
 	}
 

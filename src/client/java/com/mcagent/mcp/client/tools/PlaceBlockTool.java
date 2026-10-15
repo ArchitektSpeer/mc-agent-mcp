@@ -24,6 +24,9 @@ import net.minecraft.world.phys.Vec3;
  * Both are vanilla {@code useItemOn}; they differ only in which block gets clicked.
  */
 public final class PlaceBlockTool implements McpTool {
+	/** Up to ~0.5 s for a container screen to open after interact_block. */
+	private static final int SCREEN_WAIT_POLLS = 10;
+
 	private final GameBridge bridge;
 	private final boolean interact;
 
@@ -75,7 +78,7 @@ public final class PlaceBlockTool implements McpTool {
 		String faceName = interact
 				? Args.getEnum(args, "face", null, "down", "up", "north", "south", "west", "east") : null;
 
-		return bridge.callOnGameThread(() -> {
+		JsonObject out = bridge.callOnGameThread(() -> {
 			LocalPlayer p = GameBridge.requirePlayer();
 			Minecraft mc = Minecraft.getInstance();
 			ClientLevel level = mc.level;
@@ -125,6 +128,27 @@ public final class PlaceBlockTool implements McpTool {
 			}
 			return o;
 		});
+		if (interact && out.get("success").getAsBoolean() && !out.has("screenOpened")) {
+			// Containers open when the server answers, a tick or two later: wait briefly so the
+			// agent can call get_container right away.
+			for (int i = 0; i < SCREEN_WAIT_POLLS; i++) {
+				String screen = bridge.callOnGameThread(() -> {
+					var s = Minecraft.getInstance().screen;
+					return s == null ? null : s.getClass().getSimpleName();
+				});
+				if (screen != null) {
+					out.addProperty("screenOpened", screen);
+					break;
+				}
+				try {
+					Thread.sleep(50);
+				} catch (InterruptedException e) {
+					Thread.currentThread().interrupt();
+					break;
+				}
+			}
+		}
+		return out;
 	}
 
 	/** Hit at the center of {@code face} of the block at {@code pos}. */
