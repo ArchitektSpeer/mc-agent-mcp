@@ -58,6 +58,10 @@ public class CodecTest {
 		JsonObject layers = BlockCodec.toLayers(v);
 		JsonArray arr = layers.getAsJsonArray("layers");
 		check("layers emits one map per Y level", arr.size() == sy);
+		JsonArray ys = layers.getAsJsonArray("layerY");
+		check("layerY labels every slice, highest first", ys.size() == sy
+				&& ys.get(0).getAsInt() == v.originY + sy - 1 && ys.get(sy - 1).getAsInt() == v.originY);
+		check("howToRead explains the axes", layers.get("howToRead").getAsString().contains("highest first"));
 		check("top layer (all air) is blank",
 				arr.get(0).getAsString().chars().allMatch(c -> c == ' ' || c == '\n'));
 		String dirtLayer = arr.get(1).getAsString();

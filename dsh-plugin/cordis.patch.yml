@@ -1,0 +1,58 @@
+# dsh-plugin-minecraft bundle layer.
+#
+# package.json declares `dsh.bundle.patch` pointing here, so
+# `dsh plugin --profile <name> add dsh-plugin-minecraft` adds this layer to the profile.
+# It inserts one DSH MCP client entry (id `minecraft`) connected to the mc-agent-mcp mod
+# inside your running Minecraft client. The model then gets the mod's tools as
+# `mcp__minecraft__<tool>` and the mod's playbook (server instructions) in its system prompt.
+#
+# The URL and Bearer token are read from the mod's own config file at startup, in order:
+#   1. MC_AGENT_URL / MC_AGENT_TOKEN environment variables
+#   2. the file named by MC_AGENT_CONFIG
+#   3. <minecraft dir>/config/mcagent.json, or the most recently used
+#      <minecraft dir>/versions/*/config/mcagent.json (HMCL / PCL version isolation),
+#      where <minecraft dir> is MC_AGENT_GAME_DIR or the platform default.
+# Override anything per profile with a patch on id `minecraft`.
+- insert:
+    - id: minecraft
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: minecraft
+        transport: streamable-http
+        url: !!js |
+          (() => {
+            const fs = process.getBuiltinModule('node:fs'), path = process.getBuiltinModule('node:path'), os = process.getBuiltinModule('node:os');
+            if (process.env.MC_AGENT_URL) return process.env.MC_AGENT_URL;
+            const home = os.homedir(), env = process.env;
+            const gameDir = env.MC_AGENT_GAME_DIR || (process.platform === 'win32' ? path.join(env.APPDATA || home, '.minecraft')
+              : process.platform === 'darwin' ? path.join(home, 'Library', 'Application Support', 'minecraft') : path.join(home, '.minecraft'));
+            const files = env.MC_AGENT_CONFIG ? [env.MC_AGENT_CONFIG] : [path.join(gameDir, 'config', 'mcagent.json')];
+            if (!env.MC_AGENT_CONFIG) { try { for (const v of fs.readdirSync(path.join(gameDir, 'versions'))) files.push(path.join(gameDir, 'versions', v, 'config', 'mcagent.json')); } catch {} }
+            let best = null, bestTime = -1;
+            for (const f of files) { try { const t = fs.statSync(f).mtimeMs; if (t > bestTime) { best = f; bestTime = t; } } catch {} }
+            let cfg = {}; try { if (best) cfg = JSON.parse(fs.readFileSync(best, 'utf8')); } catch {}
+            const host = !cfg.bindAddress || cfg.bindAddress === '0.0.0.0' ? '127.0.0.1' : cfg.bindAddress;
+            return 'http://' + host + ':' + (cfg.port || 27890) + '/mcp';
+          })()
+        headers:
+          Authorization: !!js |
+            (() => {
+              const fs = process.getBuiltinModule('node:fs'), path = process.getBuiltinModule('node:path'), os = process.getBuiltinModule('node:os');
+              if (process.env.MC_AGENT_TOKEN) return 'Bearer ' + process.env.MC_AGENT_TOKEN;
+              const home = os.homedir(), env = process.env;
+              const gameDir = env.MC_AGENT_GAME_DIR || (process.platform === 'win32' ? path.join(env.APPDATA || home, '.minecraft')
+                : process.platform === 'darwin' ? path.join(home, 'Library', 'Application Support', 'minecraft') : path.join(home, '.minecraft'));
+              const files = env.MC_AGENT_CONFIG ? [env.MC_AGENT_CONFIG] : [path.join(gameDir, 'config', 'mcagent.json')];
+              if (!env.MC_AGENT_CONFIG) { try { for (const v of fs.readdirSync(path.join(gameDir, 'versions'))) files.push(path.join(gameDir, 'versions', v, 'config', 'mcagent.json')); } catch {} }
+              let best = null, bestTime = -1;
+              for (const f of files) { try { const t = fs.statSync(f).mtimeMs; if (t > bestTime) { best = f; bestTime = t; } } catch {} }
+              let cfg = {}; try { if (best) cfg = JSON.parse(fs.readFileSync(best, 'utf8')); } catch {}
+              return 'Bearer ' + (cfg.authToken || '');
+            })()
+        # go_to, craft and break_block wait for the game; give them room.
+        toolCallTimeoutMs: 90000
+        # Minecraft is often started after DSH, or restarted: keep retrying quietly.
+        reconnect:
+          initialDelayMs: 2000
+          maxDelayMs: 15000
+          maxAttempts: 1000

@@ -55,6 +55,18 @@ claude mcp add --transport http minecraft http://127.0.0.1:27890/mcp \
 
 其他客户端（通过 `mcp-remote` 的 Claude Desktop、Cursor、自建智能体等）使用相同的 URL 和请求头。
 
+**DeepSeek Harness（DSH）**
+
+[`dsh-plugin-minecraft`](dsh-plugin/README.zh-CN.md) 组合包让 DSH 免配置连上模组（自动找到端口和令牌，
+包括 HMCL/PCL 的版本隔离目录）：
+
+```bash
+dsh plugin --profile web add dsh-plugin-minecraft
+```
+
+端到端实测：在 `dsh headless` 中运行的 DeepSeek V4 Flash，从空背包出发、身边有两棵橡树，
+69 秒（17 步）内砍到原木并合成了工作台和木镐。
+
 **示例智能体（DeepSeek 或任何 OpenAI 兼容 API）**
 
 [`examples/deepseek_agent.py`](examples/deepseek_agent.py) 是一个独立的智能体循环（只用 Python 标准库）。
@@ -350,6 +362,7 @@ java -jar minecraft-server.jar --nogui     # 控制台可用 /give、/setblock�
 - **M7** ✅ 加固：权限、速率限制、请求限制、工具 annotations、双语文档
 - **M8** ✅ 让快速/低成本模型也能玩：生存反射、受伤中断、`go_to`、`batch`、`observe` 中的威胁和事件、
   DeepSeek 示例智能体
+- **M9** ✅ DeepSeek Harness 插件；`layers` 增加 `layerY` 标注；`go_to` 在实心目标旁停下并指出挡路的方块
 - **下一步**：演示视频；可选的 `pathfind_to`（通过 Baritone，LGPL，仅作为外部依赖）
 
 ## 许可证

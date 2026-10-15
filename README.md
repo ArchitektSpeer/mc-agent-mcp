@@ -63,6 +63,18 @@ how crafting works.
 Other clients (Claude Desktop via `mcp-remote`, Cursor, custom agents, …) use the same URL and
 header.
 
+**DeepSeek Harness (DSH)**
+
+The [`dsh-plugin-minecraft`](dsh-plugin/README.md) bundle connects DSH to the mod with no
+configuration (it finds the port and token itself, including HMCL/PCL version folders):
+
+```bash
+dsh plugin --profile web add dsh-plugin-minecraft
+```
+
+Tested end to end: DeepSeek V4 Flash in `dsh headless`, starting from an empty inventory next to
+two oak trees, collected logs and crafted a crafting table and a wooden pickaxe in 69 s (17 steps).
+
 **Example agent (DeepSeek or any OpenAI-compatible API)**
 
 [`examples/deepseek_agent.py`](examples/deepseek_agent.py) is a standalone agent loop (Python
@@ -373,6 +385,8 @@ tool has been exercised this way in survival.
 - **M7** ✅ hardening: permissions, rate limits, request limits, tool annotations, bilingual docs
 - **M8** ✅ playable by fast/cheap models: survival reflexes, interrupt on damage, `go_to`, `batch`,
   threats/events in `observe`, example DeepSeek agent
+- **M9** ✅ DeepSeek Harness plugin; `layers` labelled with `layerY`; `go_to` stops next to solid
+  targets and names what blocks it
 - **Next**: demo video; optional `pathfind_to` via Baritone (LGPL, kept as an
   external dependency)
 
