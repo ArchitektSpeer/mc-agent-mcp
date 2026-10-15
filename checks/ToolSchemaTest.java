@@ -8,6 +8,11 @@ import com.mcagent.mcp.client.control.AgentControl;
 import com.mcagent.mcp.client.tools.AttackTool;
 import com.mcagent.mcp.client.tools.BreakBlockTool;
 import com.mcagent.mcp.client.tools.ChatTool;
+import com.mcagent.mcp.client.tools.ClickSlotTool;
+import com.mcagent.mcp.client.tools.CraftTool;
+import com.mcagent.mcp.client.tools.GetContainerTool;
+import com.mcagent.mcp.client.tools.GetRecipesTool;
+import com.mcagent.mcp.client.tools.TransferItemsTool;
 import com.mcagent.mcp.client.tools.GetBlockChangesTool;
 import com.mcagent.mcp.client.tools.GetChatTool;
 import com.mcagent.mcp.client.tools.GetEntitiesTool;
@@ -71,6 +76,11 @@ public class ToolSchemaTest {
 		tools.add(new ChatTool(null, false));
 		tools.add(new RespawnTool(null));
 		tools.add(new StopTool(null, control));
+		tools.add(new GetContainerTool(null));
+		tools.add(new ClickSlotTool(null));
+		tools.add(new TransferItemsTool(null));
+		tools.add(new GetRecipesTool(null));
+		tools.add(new CraftTool(null, control));
 
 		// The registry is what tools/list is built from; make sure it accepts them all.
 		ToolRegistry registry = new ToolRegistry();

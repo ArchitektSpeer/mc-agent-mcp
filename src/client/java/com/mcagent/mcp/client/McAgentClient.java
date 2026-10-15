@@ -9,6 +9,11 @@ import com.mcagent.mcp.client.control.AgentControl;
 import com.mcagent.mcp.client.tools.AttackTool;
 import com.mcagent.mcp.client.tools.BreakBlockTool;
 import com.mcagent.mcp.client.tools.ChatTool;
+import com.mcagent.mcp.client.tools.ClickSlotTool;
+import com.mcagent.mcp.client.tools.CraftTool;
+import com.mcagent.mcp.client.tools.GetContainerTool;
+import com.mcagent.mcp.client.tools.GetRecipesTool;
+import com.mcagent.mcp.client.tools.TransferItemsTool;
 import com.mcagent.mcp.client.tools.GetBlockChangesTool;
 import com.mcagent.mcp.client.tools.GetBlocksTool;
 import com.mcagent.mcp.client.tools.GetChatTool;
@@ -47,6 +52,7 @@ import net.minecraft.world.level.block.Block;
  * M3 adds: block engine (scanner/codec), diff tracker with Mixin hook,
  * SSE notification pushes, and 4 block tools.
  * M4/M5 add: entity/inventory/chat perception and player actuation ({@link AgentControl}).
+ * M6 adds: container menus and recipe-book crafting.
  */
 public class McAgentClient implements ClientModInitializer {
 	/** Playbook sent in the initialize result, so any MCP client knows how to drive the game. */
@@ -64,7 +70,11 @@ public class McAgentClient implements ClientModInitializer {
 			Mining: select_slot the right tool, then break_block {pos}; walk over drops to pick them up.
 			Building: select_slot a block, place_block {pos} into an empty cell next to a solid block.
 			Combat: attack_entity {entityId} when attackStrength is near 1.0. Eat with use_item {ticks:40}.
-			Use interact_block for doors/chests/crafting tables and stop {closeScreen:true} to close GUIs.
+			Crafting: get_recipes {item} shows ingredients and whether a crafting table is needed; craft {item,count}
+			works in the 2x2 inventory grid, or in a crafting table after interact_block on it.
+			Chests/furnaces: interact_block opens them, get_container lists slots, transfer_items moves stacks
+			(to='container' into a furnace fills fuel/input automatically), click_slot does single clicks.
+			Close GUIs with stop {closeScreen:true}.
 			stop cancels any running action.""";
 
 	private static McpHttpServer server;
@@ -116,6 +126,12 @@ public class McAgentClient implements ClientModInitializer {
 		registry.register(new ChatTool(bridge, config.allowCommands));
 		registry.register(new RespawnTool(bridge));
 		registry.register(new StopTool(bridge, control));
+		// M6 containers + crafting
+		registry.register(new GetContainerTool(bridge));
+		registry.register(new ClickSlotTool(bridge));
+		registry.register(new TransferItemsTool(bridge));
+		registry.register(new GetRecipesTool(bridge));
+		registry.register(new CraftTool(bridge, control));
 
 		McpProtocol protocol = new McpProtocol(registry, "mc-agent-mcp", version, INSTRUCTIONS);
 		server = new McpHttpServer(protocol, bus, config.bindAddress, config.port, config.authToken);
