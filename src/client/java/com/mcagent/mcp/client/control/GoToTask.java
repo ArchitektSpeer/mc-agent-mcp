@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.tags.FluidTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Input;
@@ -66,7 +67,7 @@ final class GoToTask {
 			best = dist;
 			lastProgress = ticks;
 		} else if (ticks - lastProgress > STUCK_TICKS) {
-			return finish(p, false, "stuck " + round(dist) + " blocks away (wall or gap; pick a waypoint or dig)");
+			return finish(p, false, "stuck " + round(dist) + " blocks away: " + blockerAhead(level, p, dx / dist, dz / dist));
 		}
 
 		float yaw = (float) Math.toDegrees(Math.atan2(-dx, dz));
@@ -84,6 +85,21 @@ final class GoToTask {
 
 	JsonObject cancelled(LocalPlayer p, String reason) {
 		return finish(p, false, reason);
+	}
+
+	/** What stops the player: the first solid block ahead at feet or head height, with a hint. */
+	private static String blockerAhead(ClientLevel level, LocalPlayer p, double ux, double uz) {
+		BlockPos feet = BlockPos.containing(p.getX() + ux * 0.8, p.getY(), p.getZ() + uz * 0.8);
+		String[] where = {"feet", "head", "above head (blocks jumping)"};
+		BlockPos[] cells = {feet, feet.above(), p.blockPosition().above(2)};
+		for (int i = 0; i < cells.length; i++) {
+			var state = level.getBlockState(cells[i]);
+			if (!state.getCollisionShape(level, cells[i]).isEmpty()) {
+				return "blocked by " + BuiltInRegistries.BLOCK.getKey(state.getBlock()) + " at " + cells[i].getX()
+						+ "," + cells[i].getY() + "," + cells[i].getZ() + " (" + where[i] + "); break it or go around";
+			}
+		}
+		return "no block directly ahead (a gap, a slab edge or an entity?); try a waypoint to the side";
 	}
 
 	/** Lava, or a drop deeper than {@link #MAX_SAFE_DROP}, one block ahead. */

@@ -124,7 +124,9 @@ public final class BlockCodec {
 		}
 		o.add("legend", legend);
 		JsonArray layers = new JsonArray();
+		JsonArray layerY = new JsonArray();
 		for (int y = v.sizeY - 1; y >= 0; y--) {
+			layerY.add(v.originY + y);
 			StringBuilder sb = new StringBuilder();
 			for (int z = 0; z < v.sizeZ; z++) {
 				for (int x = 0; x < v.sizeX; x++) {
@@ -137,6 +139,10 @@ public final class BlockCodec {
 			layers.add(sb.toString());
 		}
 		o.add("layers", layers); // index 0 = top Y layer, rows = z, cols = x
+		// Models misread an unlabeled stack (bottom-up is the natural guess), so label it.
+		o.add("layerY", layerY);
+		o.addProperty("howToRead", "layers[i] is the horizontal slice at y=layerY[i], highest first. In each slice, "
+				+ "row r is z=" + v.originZ + "+r (north to south) and column c is x=" + v.originX + "+c (west to east).");
 		return o;
 	}
 
