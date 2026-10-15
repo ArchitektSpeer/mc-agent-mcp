@@ -46,6 +46,35 @@ public final class GameBridge {
 		}
 	}
 
+	/**
+	 * Wait (on the calling HTTP thread, never the game thread) for a multi-tick action
+	 * started on the game thread to complete.
+	 */
+	public static <T> T await(CompletableFuture<T> future, long timeoutMs) {
+		try {
+			return future.get(timeoutMs, TimeUnit.MILLISECONDS);
+		} catch (java.util.concurrent.TimeoutException e) {
+			throw new com.mcagent.mcp.tools.McpTool.ToolException(
+					"action still running after " + timeoutMs + " ms (is the game paused or frozen?)");
+		} catch (InterruptedException e) {
+			Thread.currentThread().interrupt();
+			throw new RuntimeException("interrupted while waiting for the game", e);
+		} catch (java.util.concurrent.ExecutionException e) {
+			Throwable cause = e.getCause();
+			if (cause instanceof RuntimeException re) throw re;
+			throw new RuntimeException(cause);
+		}
+	}
+
+	/** The local player, or a tool error when no world is loaded. Game thread only. */
+	public static net.minecraft.client.player.LocalPlayer requirePlayer() {
+		Minecraft mc = Minecraft.getInstance();
+		if (mc.level == null || mc.player == null || mc.gameMode == null) {
+			throw new com.mcagent.mcp.tools.McpTool.ToolException("not in a world");
+		}
+		return mc.player;
+	}
+
 	public boolean isInWorld() {
 		return mc.level != null && mc.player != null;
 	}

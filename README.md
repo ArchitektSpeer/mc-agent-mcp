@@ -10,7 +10,8 @@ and play the game directly.
 - **Protocol**: MCP spec `2025-06-18`
 - **Client-side mod**: it drives the local player; nothing is exposed beyond loopback
 
-> Status: **M3 complete** — block engine (scanner, codec, change tracking, SSE push).
+> Status: **M5 complete** — perception (blocks, entities, inventory, chat) and actuation
+> (move, look, mine, place, attack, use, chat). An AI agent can now play the game end to end.
 > See the roadmap at the end.
 
 ## Build
@@ -31,6 +32,31 @@ game log. Point any MCP client that supports *Streamable HTTP* at:
 URL:     http://127.0.0.1:27890/mcp
 Header:  Authorization: Bearer <token from config/mcagent.json>
 ```
+
+### Claude Code
+
+```bash
+TOKEN=$(grep authToken ~/.minecraft/config/mcagent.json | cut -d'"' -f4)
+claude mcp add --transport http minecraft http://127.0.0.1:27890/mcp \
+  --header "Authorization: Bearer $TOKEN"
+```
+
+Then join a world and ask Claude e.g. *"collect 10 oak logs and craft a crafting table"*. The
+server's `initialize` result carries a short playbook (`instructions`) that MCP clients put in the
+model's context, explaining the observe → act loop, yaw directions and reach limits.
+
+Other clients (Claude Desktop via `mcp-remote`, Cursor, DeepSeek agents, …) use the same URL and
+header.
+
+### Config (`config/mcagent.json`)
+
+| Key | Default | Meaning |
+|---|---|---|
+| `enabled` | `true` | start the MCP server |
+| `port` / `bindAddress` | `27890` / `127.0.0.1` | listen address (keep it on loopback) |
+| `authToken` | random | Bearer token, generated on first run |
+| `allowCommands` | `false` | let the `chat` tool send `/commands` (an agent could otherwise `/op`, `/kill`, …) |
+| `disablePauseOnLostFocus` | `true` | keep the game running while unfocused, so the agent can play in the background |
 
 Manual smoke test:
 
@@ -79,9 +105,31 @@ one of them per session.
 | `scan_blocks` | ✅ | locate specific blocks (ore hunting) inside a radius |
 | `subscribe_blocks` | ✅ | start/stop/status of the block-change tracker |
 | `get_block_changes` | ✅ | poll the tracked block diffs (SSE alternative) |
-| `get_entities`, `get_inventory` | 🔜 M4 | perception |
-| `move`, `look_at`, `break_block`, `place_block`, `attack`, `use_item`, `chat` | 🔜 M5 | actuation |
+| `get_entities` | ✅ | nearby entities, nearest first: id, type, pos, health, `hostile`, dropped `item` |
+| `get_inventory` | ✅ | non-empty slots (0-8 hotbar, 9-35 main, 36-39 armor, 40 offhand), selected slot |
+| `get_chat` | ✅ | received chat/system messages, incremental via `afterSeq` |
+| `move` | ✅ | hold W/A/S/D/jump/sneak/sprint for N ticks, optional `yaw` first |
+| `look` | ✅ | set yaw/pitch, or face a block / entity |
+| `break_block` | ✅ | mine a block until it breaks (multi-tick, survival-correct) |
+| `place_block` | ✅ | place the held block into an empty cell (support face found automatically) |
+| `interact_block` | ✅ | right-click a block: doors, chests, crafting tables, beds, buttons |
+| `attack_entity` / `interact_entity` | ✅ | left / right click an entity by id |
+| `use_item` | ✅ | right-click in the air; `ticks>0` holds it (eat, drink, bow, shield) |
+| `select_slot` | ✅ | pick hotbar slot, optionally drop one/all |
+| `chat` | ✅ | send chat; `/commands` only with `allowCommands` |
+| `respawn` | ✅ | respawn after death |
+| `stop` | ✅ | release all keys, cancel mining, optionally close the open GUI |
 | `pathfind_to` | 🔜 later | optional Baritone integration (LGPL, kept as external dep) |
+
+### Actuation model
+
+Timed actions (`move`, `break_block`, `use_item` with `ticks`) run on game ticks and the tool call
+returns when they finish (or use `wait:false` on `move`). Starting a new action of the same kind
+replaces the old one; `stop` cancels everything. Movement is injected after vanilla reads the
+keyboard (`KeyboardInputMixin`), so it works while the window is unfocused. While mining, vanilla's
+per-tick `continueAttack` is skipped (`MinecraftMixin`) — with the attack key up it would reset the
+break progress every tick. Reach is checked up front, so the agent gets an actionable
+"out of reach; move closer" instead of a silent no-op.
 
 ### `get_blocks`
 
@@ -138,7 +186,8 @@ Measured on a 48³ (110,592 cells) terrain-like volume, encoded off-thread (`che
 | `layers` | 116 KB | 1.05 B | 8.4 ms | 1.9× smaller |
 | `json` | 2.3 MB | 20.9 B | 25 ms | 10× larger |
 
-- **Security**: loopback bind + random Bearer token; nothing is exposed to the network by default.
+- **Security**: loopback bind + random Bearer token + `Origin` validation (browser requests from
+  non-loopback origins get 403, blocking DNS rebinding); chat commands are off by default.
 
 ## Checks
 
@@ -150,17 +199,19 @@ Everything that can be verified without a GPU or a Minecraft account:
 
 | Check | Covers |
 |---|---|
-| `ProtocolTest` | initialize/session id, `tools/list`, `tools/call`, tool errors → `isError`, JSON-RPC errors, batches, 401, 202, 405, DELETE |
+| `ProtocolTest` | initialize/session id/instructions, `tools/list`, `tools/call`, tool errors → `isError`, JSON-RPC errors, batches, 401, 403 on foreign `Origin`, 202, 405, DELETE |
 | `SseSelfTest` | SSE push end-to-end, concurrent POST while streaming, DELETE closing streams |
 | `CodecTest` | `rle` round-trip, `layers` geometry/legend, `json` air skipping, stats |
 | `DiffLogicTest` | baseline, appeared/removed with old/new ids, chunk unload, overflow → resync, sparse air |
-| `ToolSchemaTest` | every advertised JSON Schema is well-formed (types, `enum` arrays, `required`, `items`) |
+| `ArgsTest` | argument validation (ranges, integer-only positions, enums → `ToolException`), chat log paging |
+| `ToolSchemaTest` | all 22 tools: unique names, well-formed JSON Schema (types, `enum` arrays, `required`, `items`) |
 
 `CodecBench` (`./.jdk21/bin/java -cp .harness/classes:build/classes/java/client:<gson> CodecBench`)
 prints the numbers in the table above.
 
 **Not covered offline** (needs a real game launch): mixin application at runtime, live chunk
-scanning, and SSE pushes from an actual world.
+scanning, SSE pushes from an actual world, and the effect of actuation tools on a real player.
+`./gradlew runClient` + the curl commands above are the manual test path.
 
 ## Layout
 
@@ -176,19 +227,29 @@ src/main/java/com/mcagent/mcp/
   tools/McpTool.java         tool SPI
   tools/ToolRegistry.java    tool registry -> tools/list
   tools/PingTool.java        liveness tool
+  tools/Args.java            validating argument accessors
+  tools/Schema.java          input-schema builder
 src/client/java/com/mcagent/mcp/client/
   McAgentClient.java         client entrypoint: wiring + lifecycle
   GameBridge.java            main-thread dispatch for all game access
+  ChatLog.java               bounded log of received chat
+  control/AgentControl.java  timed actions: held keys, use key, block breaking
   tools/ObserveTool.java     player/world perception
   tools/GetBlocksTool.java   get_blocks (bulk block read)
   tools/ScanBlocksTool.java  scan_blocks (find blocks)
   tools/SubscribeBlocksTool.java   subscribe_blocks (start/stop/status)
   tools/GetBlockChangesTool.java   get_block_changes (poll diffs)
+  tools/GetEntitiesTool.java, GetInventoryTool.java, GetChatTool.java   M4 perception
+  tools/MoveTool.java, LookTool.java, BreakBlockTool.java, PlaceBlockTool.java,
+  tools/AttackTool.java, UseItemTool.java, SelectSlotTool.java, ChatTool.java,
+  tools/RespawnTool.java, StopTool.java                                  M5 actuation
   blocks/BlockScanner.java   section-level scanning
   blocks/BlockCodec.java     rle / layers / json encoders
   blocks/BlockDiffTracker.java     change tracking + per-chunk snapshots
   blocks/SparseChunkDiff.java      pure diff core (unit-tested)
   mixin/ClientLevelMixin.java      setBlock hook for exact change detection
+  mixin/KeyboardInputMixin.java    agent movement input
+  mixin/MinecraftMixin.java        keeps agent mining progress alive
 checks/                      offline check suite (see above)
 ```
 
@@ -196,9 +257,11 @@ checks/                      offline check suite (see above)
 
 - **M0–M2** ✅ project skeleton, HTTP/JSON-RPC transport, `ping`/`observe`
 - **M3** ✅ block engine: scanner, codecs, change tracking, SSE push
-- **M4** perception: `get_entities`, `get_inventory`, container/inventory reads
-- **M5** actuation: `move`, `look_at`, `break_block`, `place_block`, `attack`, `use_item`, `chat`
-- **M6** hardening + docs: rate limits, per-tool permissions, example agent, demo video
+- **M4** ✅ perception: `get_entities`, `get_inventory`, `get_chat`
+- **M5** ✅ actuation: `move`, `look`, `break_block`, `place_block`, `interact_*`, `attack_entity`,
+  `use_item`, `select_slot`, `chat`, `respawn`, `stop`
+- **M6** containers + crafting: read/click open container slots, recipe-book crafting, smelting
+- **M7** hardening + docs: rate limits, per-tool permissions, example agent, demo video
 - **Later** optional `pathfind_to` via Baritone as an *external* dependency
 
 ## License

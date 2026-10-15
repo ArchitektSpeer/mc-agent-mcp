@@ -7,6 +7,8 @@
 #   3. SSE push + concurrent POST             (SseSelfTest)
 #   4. block codec formats (rle/layers/json)  (CodecTest)
 #   5. change-detection logic                 (DiffLogicTest)
+#   6. tool argument validation + chat log    (ArgsTest)
+#   7. every tool's advertised JSON Schema    (ToolSchemaTest)
 #
 # In-game behaviour (mixin application, scanning a live world, SSE from a real
 # game) still needs an actual Minecraft launch; see README.
@@ -29,7 +31,7 @@ fi
 
 FAILED=0
 
-echo "== 1/6 gradle build =="
+echo "== 1/7 gradle build =="
 if ./gradlew build --console=plain -q; then
 	echo "   build ok"
 else
@@ -53,15 +55,16 @@ run_test() { # name, source, classpath
 	fi
 }
 
-run_test "2/6 MCP protocol"      ProtocolTest.java   "build/classes/java/main:$GSON:$SLF4J"
-run_test "3/6 SSE push"          SseSelfTest.java    "build/classes/java/main:$GSON:$SLF4J"
-run_test "4/6 block codec"       CodecTest.java      "build/classes/java/client:$GSON"
-run_test "5/6 change detection"  DiffLogicTest.java  "build/classes/java/client:$GSON"
+run_test "2/7 MCP protocol"      ProtocolTest.java   "build/classes/java/main:$GSON:$SLF4J"
+run_test "3/7 SSE push"          SseSelfTest.java    "build/classes/java/main:$GSON:$SLF4J"
+run_test "4/7 block codec"       CodecTest.java      "build/classes/java/client:$GSON"
+run_test "5/7 change detection"  DiffLogicTest.java  "build/classes/java/client:$GSON"
+run_test "6/7 tool arguments"    ArgsTest.java       "build/classes/java/client:build/classes/java/main:$GSON"
 
 # Loading the client tools requires the mapped Minecraft jars.
 MC_COMMON=$(find "$ROOT/.gradle-home/caches/fabric-loom/minecraftMaven" -path '*minecraft-common/*' -name '*.jar' ! -name '*sources*' 2>/dev/null | sort -V | tail -1)
 MC_CLIENT=$(find "$ROOT/.gradle-home/caches/fabric-loom/minecraftMaven" -path '*minecraft-clientonly/*' -name '*.jar' ! -name '*sources*' 2>/dev/null | sort -V | tail -1)
-run_test "6/6 tool schemas"      ToolSchemaTest.java "build/classes/java/client:build/classes/java/main:$MC_COMMON:$MC_CLIENT:$GSON:$SLF4J"
+run_test "7/7 tool schemas"      ToolSchemaTest.java "build/classes/java/client:build/classes/java/main:$MC_COMMON:$MC_CLIENT:$GSON:$SLF4J"
 
 echo
 if [ "$FAILED" -eq 0 ]; then

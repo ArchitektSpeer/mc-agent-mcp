@@ -5,11 +5,25 @@ import com.google.gson.JsonObject;
 import com.mcagent.mcp.McAgentMod;
 import com.mcagent.mcp.client.blocks.BlockDiffTracker;
 import com.mcagent.mcp.client.blocks.BlockScanner;
+import com.mcagent.mcp.client.control.AgentControl;
+import com.mcagent.mcp.client.tools.AttackTool;
+import com.mcagent.mcp.client.tools.BreakBlockTool;
+import com.mcagent.mcp.client.tools.ChatTool;
 import com.mcagent.mcp.client.tools.GetBlockChangesTool;
 import com.mcagent.mcp.client.tools.GetBlocksTool;
+import com.mcagent.mcp.client.tools.GetChatTool;
+import com.mcagent.mcp.client.tools.GetEntitiesTool;
+import com.mcagent.mcp.client.tools.GetInventoryTool;
+import com.mcagent.mcp.client.tools.LookTool;
+import com.mcagent.mcp.client.tools.MoveTool;
 import com.mcagent.mcp.client.tools.ObserveTool;
+import com.mcagent.mcp.client.tools.PlaceBlockTool;
+import com.mcagent.mcp.client.tools.RespawnTool;
 import com.mcagent.mcp.client.tools.ScanBlocksTool;
+import com.mcagent.mcp.client.tools.SelectSlotTool;
+import com.mcagent.mcp.client.tools.StopTool;
 import com.mcagent.mcp.client.tools.SubscribeBlocksTool;
+import com.mcagent.mcp.client.tools.UseItemTool;
 import com.mcagent.mcp.config.McAgentConfig;
 import com.mcagent.mcp.server.McpHttpServer;
 import com.mcagent.mcp.server.McpProtocol;
@@ -20,6 +34,7 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
 import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.loader.api.ModContainer;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -31,8 +46,27 @@ import net.minecraft.world.level.block.Block;
  *
  * M3 adds: block engine (scanner/codec), diff tracker with Mixin hook,
  * SSE notification pushes, and 4 block tools.
+ * M4/M5 add: entity/inventory/chat perception and player actuation ({@link AgentControl}).
  */
 public class McAgentClient implements ClientModInitializer {
+	/** Playbook sent in the initialize result, so any MCP client knows how to drive the game. */
+	static final String INSTRUCTIONS = """
+			You control a Minecraft player through these tools. Game time: 20 ticks = 1 second.
+			Loop: observe -> decide -> act -> observe. observe reports position, health, food, held item,
+			crosshair target, open screen and dead=true (then call respawn).
+			Perception: get_blocks format='layers' gives readable ASCII maps; scan_blocks finds ores/blocks;
+			get_entities lists mobs (hostile=true), players and dropped items with ids; get_inventory lists slots;
+			get_chat reads messages (pass afterSeq=lastSeq).
+			Movement: look (yaw/pitch, block or entity) then move {forward:true, ticks:N}; add jump:true to climb
+			one-block steps, sneak:true near edges. Yaw: 0=south(+z), 90=west(-x), 180=north(-z), -90=east(+x).
+			There is no pathfinder: walk in short segments and re-observe; get_blocks around you to plan a route.
+			Interaction reach is ~4.5 blocks for blocks and ~3 for entities; move closer when a tool says out of reach.
+			Mining: select_slot the right tool, then break_block {pos}; walk over drops to pick them up.
+			Building: select_slot a block, place_block {pos} into an empty cell next to a solid block.
+			Combat: attack_entity {entityId} when attackStrength is near 1.0. Eat with use_item {ticks:40}.
+			Use interact_block for doors/chests/crafting tables and stop {closeScreen:true} to close GUIs.
+			stop cancels any running action.""";
+
 	private static McpHttpServer server;
 
 	@Override
@@ -54,6 +88,9 @@ public class McAgentClient implements ClientModInitializer {
 		BlockDiffTracker tracker = new BlockDiffTracker();
 		BlockDiffTracker.instance = tracker; // static handle for the Mixin hook
 		NotificationBus bus = new NotificationBus();
+		AgentControl control = new AgentControl();
+		AgentControl.instance = control; // static handle for the input/attack Mixins
+		ChatLog chatLog = new ChatLog();
 
 		ToolRegistry registry = new ToolRegistry();
 		registry.register(new PingTool());
@@ -62,8 +99,25 @@ public class McAgentClient implements ClientModInitializer {
 		registry.register(new ScanBlocksTool(bridge, scanner));
 		registry.register(new SubscribeBlocksTool(bridge, tracker));
 		registry.register(new GetBlockChangesTool(bridge, tracker));
+		// M4 perception
+		registry.register(new GetEntitiesTool(bridge));
+		registry.register(new GetInventoryTool(bridge));
+		registry.register(new GetChatTool(chatLog));
+		// M5 actuation
+		registry.register(new MoveTool(bridge, control));
+		registry.register(new LookTool(bridge));
+		registry.register(new BreakBlockTool(bridge, control));
+		registry.register(PlaceBlockTool.place(bridge));
+		registry.register(PlaceBlockTool.interact(bridge));
+		registry.register(AttackTool.attack(bridge));
+		registry.register(AttackTool.interact(bridge));
+		registry.register(new UseItemTool(bridge, control));
+		registry.register(new SelectSlotTool(bridge));
+		registry.register(new ChatTool(bridge, config.allowCommands));
+		registry.register(new RespawnTool(bridge));
+		registry.register(new StopTool(bridge, control));
 
-		McpProtocol protocol = new McpProtocol(registry, "mc-agent-mcp", version);
+		McpProtocol protocol = new McpProtocol(registry, "mc-agent-mcp", version, INSTRUCTIONS);
 		server = new McpHttpServer(protocol, bus, config.bindAddress, config.port, config.authToken);
 		try {
 			server.start();
@@ -76,6 +130,7 @@ public class McAgentClient implements ClientModInitializer {
 
 		// Track world changes each client tick; push diffs to SSE subscribers.
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+			control.tick(mc);
 			tracker.tick();
 			if (tracker.isTracking() && bus.subscriberCount() > 0) {
 				BlockDiffTracker.DiffResult diff = tracker.takeDiff();
@@ -94,6 +149,18 @@ public class McAgentClient implements ClientModInitializer {
 				tracker.onChunkLoaded(chunk.getPos().x, chunk.getPos().z));
 		ClientChunkEvents.CHUNK_UNLOAD.register((level, chunk) ->
 				tracker.onChunkUnloaded(chunk.getPos().x, chunk.getPos().z));
+
+		ClientReceiveMessageEvents.CHAT.register((message, signed, sender, params, receivedAt) ->
+				chatLog.add("chat", sender == null ? null : sender.name(), message.getString()));
+		ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
+			if (!overlay) chatLog.add("game", null, message.getString()); // skip action-bar spam
+		});
+
+		if (config.disablePauseOnLostFocus) {
+			// An agent drives the game while the user works in another window; vanilla would
+			// pause on focus loss and open the pause menu, freezing every timed action.
+			ClientLifecycleEvents.CLIENT_STARTED.register(mc -> mc.options.pauseOnLostFocus = false);
+		}
 
 		ClientLifecycleEvents.CLIENT_STOPPING.register(mc -> {
 			if (server != null) {

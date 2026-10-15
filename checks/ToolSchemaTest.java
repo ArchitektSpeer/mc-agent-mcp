@@ -3,7 +3,22 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.mcagent.mcp.client.blocks.BlockDiffTracker;
 import com.mcagent.mcp.client.blocks.BlockScanner;
+import com.mcagent.mcp.client.ChatLog;
+import com.mcagent.mcp.client.control.AgentControl;
+import com.mcagent.mcp.client.tools.AttackTool;
+import com.mcagent.mcp.client.tools.BreakBlockTool;
+import com.mcagent.mcp.client.tools.ChatTool;
 import com.mcagent.mcp.client.tools.GetBlockChangesTool;
+import com.mcagent.mcp.client.tools.GetChatTool;
+import com.mcagent.mcp.client.tools.GetEntitiesTool;
+import com.mcagent.mcp.client.tools.GetInventoryTool;
+import com.mcagent.mcp.client.tools.LookTool;
+import com.mcagent.mcp.client.tools.MoveTool;
+import com.mcagent.mcp.client.tools.PlaceBlockTool;
+import com.mcagent.mcp.client.tools.RespawnTool;
+import com.mcagent.mcp.client.tools.SelectSlotTool;
+import com.mcagent.mcp.client.tools.StopTool;
+import com.mcagent.mcp.client.tools.UseItemTool;
 import com.mcagent.mcp.client.tools.GetBlocksTool;
 import com.mcagent.mcp.client.tools.ObserveTool;
 import com.mcagent.mcp.client.tools.ScanBlocksTool;
@@ -40,11 +55,31 @@ public class ToolSchemaTest {
 		tools.add(new ScanBlocksTool(null, scanner));
 		tools.add(new SubscribeBlocksTool(null, tracker));
 		tools.add(new GetBlockChangesTool(null, tracker));
+		AgentControl control = new AgentControl();
+		tools.add(new GetEntitiesTool(null));
+		tools.add(new GetInventoryTool(null));
+		tools.add(new GetChatTool(new ChatLog()));
+		tools.add(new MoveTool(null, control));
+		tools.add(new LookTool(null));
+		tools.add(new BreakBlockTool(null, control));
+		tools.add(PlaceBlockTool.place(null));
+		tools.add(PlaceBlockTool.interact(null));
+		tools.add(AttackTool.attack(null));
+		tools.add(AttackTool.interact(null));
+		tools.add(new UseItemTool(null, control));
+		tools.add(new SelectSlotTool(null));
+		tools.add(new ChatTool(null, false));
+		tools.add(new RespawnTool(null));
+		tools.add(new StopTool(null, control));
 
 		// The registry is what tools/list is built from; make sure it accepts them all.
 		ToolRegistry registry = new ToolRegistry();
 		for (McpTool t : tools) {
 			registry.register(t);
+		}
+		java.util.Set<String> names = new java.util.HashSet<>();
+		for (McpTool t : tools) {
+			check("unique tool name " + t.name(), names.add(t.name()));
 		}
 		check("registry exposes every tool",
 				registry.listPayload().getAsJsonArray("tools").size() == tools.size());
