@@ -6,6 +6,7 @@ import com.mcagent.mcp.McAgentMod;
 import com.mcagent.mcp.client.blocks.BlockDiffTracker;
 import com.mcagent.mcp.client.blocks.BlockScanner;
 import com.mcagent.mcp.client.control.AgentControl;
+import com.mcagent.mcp.client.reflex.Reflexes;
 import com.mcagent.mcp.client.tools.AttackTool;
 import com.mcagent.mcp.client.tools.BreakBlockTool;
 import com.mcagent.mcp.client.tools.ChatTool;
@@ -13,6 +14,8 @@ import com.mcagent.mcp.client.tools.ClickSlotTool;
 import com.mcagent.mcp.client.tools.CraftTool;
 import com.mcagent.mcp.client.tools.GetContainerTool;
 import com.mcagent.mcp.client.tools.GetRecipesTool;
+import com.mcagent.mcp.client.tools.GoToTool;
+import com.mcagent.mcp.client.tools.SetReflexesTool;
 import com.mcagent.mcp.client.tools.TransferItemsTool;
 import com.mcagent.mcp.client.tools.GetBlockChangesTool;
 import com.mcagent.mcp.client.tools.GetBlocksTool;
@@ -33,7 +36,9 @@ import com.mcagent.mcp.config.McAgentConfig;
 import com.mcagent.mcp.server.McpHttpServer;
 import com.mcagent.mcp.server.McpProtocol;
 import com.mcagent.mcp.server.NotificationBus;
+import com.mcagent.mcp.tools.BatchTool;
 import com.mcagent.mcp.tools.PingTool;
+import com.mcagent.mcp.tools.ToolPolicy;
 import com.mcagent.mcp.tools.ToolRegistry;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
@@ -57,26 +62,30 @@ import net.minecraft.world.level.block.Block;
 public class McAgentClient implements ClientModInitializer {
 	/** Playbook sent in the initialize result, so any MCP client knows how to drive the game. */
 	static final String INSTRUCTIONS = """
-			You control a Minecraft player through these tools. Game time: 20 ticks = 1 second.
-			Loop: observe -> decide -> act -> observe. observe reports position, health, food, held item,
-			crosshair target, open screen and dead=true (then call respawn).
-			Perception: get_blocks format='layers' gives readable ASCII maps; scan_blocks finds ores/blocks;
-			get_entities lists mobs (hostile=true), players and dropped items with ids; get_inventory lists slots;
-			get_chat reads messages (pass afterSeq=lastSeq).
-			Movement: look (yaw/pitch, block or entity) then move {forward:true, ticks:N}; add jump:true to climb
-			one-block steps, sneak:true near edges. Yaw: 0=south(+z), 90=west(-x), 180=north(-z), -90=east(+x).
-			There is no pathfinder: walk in short segments and re-observe; get_blocks around you to plan a route.
-			Interaction reach is ~4.5 blocks for blocks and ~3 for entities; move closer when a tool says out of reach.
-			Mining: select_slot the right tool, then break_block {pos}; walk over drops to pick them up.
+			You control a Minecraft survival player. 20 ticks = 1 second. Your turns are slow, so the mod runs
+			reflexes every tick for you: it hits hostile mobs in reach with your best hotbar sword/axe, hits and
+			backs away from close creepers, eats safe hotbar food when hungry, equips armor, swims up for air.
+			Keep a weapon and food in the hotbar (slots 0-8) so the reflexes can use them.
+
+			Every turn: observe first. Read 'threats' (hostile mobs, nearest first) and 'events' (damage taken,
+			what the reflexes did). If health < 8 or several threats are near, retreat or block up before anything
+			else. If dead=true, call respawn.
+			Do more per turn: batch runs up to 8 calls in order; go_to {pos} or {entityId} walks there (jumps
+			steps, stops before lava/cliffs, stops when you are hurt). Actions return early with 'interrupted'
+			when you take damage: re-observe and react.
+
+			Moving: go_to for destinations; move {forward,ticks} for small steps. Yaw 0=south(+z), 90=west(-x),
+			180=north(-z), -90=east(+x). go_to walks in a straight line: give waypoints around walls.
+			Reach: ~4.5 blocks for blocks, ~3 for entities.
+			Mining: select_slot a pickaxe/axe/shovel, break_block {pos}; walk over drops to collect them.
 			Building: select_slot a block, place_block {pos} into an empty cell next to a solid block.
-			Combat: attack_entity {entityId} when attackStrength is near 1.0. Eat with use_item {ticks:40}.
-			Crafting: get_recipes {item} shows ingredients and whether a crafting table is needed; craft {item,count}
-			works in the 2x2 inventory grid, or in a crafting table after interact_block on it.
-			Chests/furnaces: interact_block opens them, get_container lists slots, transfer_items moves stacks
-			(to='container' into a furnace fills fuel/input automatically), click_slot does single clicks.
-			Close GUIs with stop {closeScreen:true}.
-			stop cancels any running action.
-			The server owner may disable tools or rate-limit them; on a rate-limit error wait retryAfterMs.""";
+			Fighting yourself: go_to {entityId, stopDistance:2.5}, then attack_entity when attackStrength ~1.0.
+			Crafting: get_recipes {item}, then craft {item,count} (2x2 in inventory, 3x3 after interact_block on a
+			crafting table). Furnace/chest: interact_block, transfer_items, get_container, stop {closeScreen:true}.
+			Night is dangerous: before dark, have a sword, food and a shelter (dig in and place a block above you),
+			or sleep in a bed with interact_block.
+			stop cancels everything. If a tool is rate-limited, wait retryAfterMs.""";
+
 
 	private static McpHttpServer server;
 
@@ -102,10 +111,13 @@ public class McAgentClient implements ClientModInitializer {
 		AgentControl control = new AgentControl();
 		AgentControl.instance = control; // static handle for the input/attack Mixins
 		ChatLog chatLog = new ChatLog();
+		ChatLog events = new ChatLog(); // damage, reflex actions, deaths; returned by observe
+		ToolPolicy policy = config.toPolicy();
+		Reflexes reflexes = new Reflexes(config.reflexes, control, policy, events);
 
 		ToolRegistry registry = new ToolRegistry();
 		registry.register(new PingTool());
-		registry.register(new ObserveTool(bridge));
+		registry.register(new ObserveTool(bridge, events));
 		registry.register(new GetBlocksTool(bridge, scanner));
 		registry.register(new ScanBlocksTool(bridge, scanner));
 		registry.register(new SubscribeBlocksTool(bridge, tracker));
@@ -116,6 +128,7 @@ public class McAgentClient implements ClientModInitializer {
 		registry.register(new GetChatTool(chatLog));
 		// M5 actuation
 		registry.register(new MoveTool(bridge, control));
+		registry.register(new GoToTool(bridge, control));
 		registry.register(new LookTool(bridge));
 		registry.register(new BreakBlockTool(bridge, control));
 		registry.register(PlaceBlockTool.place(bridge));
@@ -133,8 +146,11 @@ public class McAgentClient implements ClientModInitializer {
 		registry.register(new TransferItemsTool(bridge));
 		registry.register(new GetRecipesTool(bridge));
 		registry.register(new CraftTool(bridge, control));
+		// survival reflexes + throughput
+		registry.register(new SetReflexesTool(config.reflexes));
 
-		McpProtocol protocol = new McpProtocol(registry, "mc-agent-mcp", version, INSTRUCTIONS, config.toPolicy());
+		McpProtocol protocol = new McpProtocol(registry, "mc-agent-mcp", version, INSTRUCTIONS, policy);
+		registry.register(new BatchTool(protocol::invokeTool));
 		server = new McpHttpServer(protocol, bus, config.bindAddress, config.port, config.authToken);
 		try {
 			server.start();
@@ -148,6 +164,7 @@ public class McAgentClient implements ClientModInitializer {
 		// Track world changes each client tick; push diffs to SSE subscribers.
 		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
 			control.tick(mc);
+			reflexes.tick(mc);
 			tracker.tick();
 			if (tracker.isTracking() && bus.subscriberCount() > 0) {
 				BlockDiffTracker.DiffResult diff = tracker.takeDiff();

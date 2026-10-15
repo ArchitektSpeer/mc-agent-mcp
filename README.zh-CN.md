@@ -16,7 +16,9 @@
 
 ## 功能
 
-- **26 个工具**，覆盖感知、移动、交互、物品栏、合成和聊天（[工具列表](#工具)）。
+- **29 个工具**，覆盖感知、移动、交互、物品栏、合成和聊天（[工具列表](#工具)）。
+- **为慢模型准备的生存反射**：模组每 tick（50 毫秒）自动防御、躲避苦力怕、进食、穿护甲、上浮换气，
+  每轮要思考几秒的智能体不会在思考时被打死（[详情](#生存反射)）。
 - **为大模型设计**：可直接阅读的 ASCII 方块地图、按距离排序的实体列表、能告诉你是否需要工作台的
   配方查询，以及会告诉智能体下一步该做什么的错误信息（例如“超出距离，请靠近”）。
 - **符合生存规则**：挖掘耗时与工具速度一致，合成像玩家一样走配方书，强制检查交互距离，
@@ -53,6 +55,18 @@ claude mcp add --transport http minecraft http://127.0.0.1:27890/mcp \
 
 其他客户端（通过 `mcp-remote` 的 Claude Desktop、Cursor、自建智能体等）使用相同的 URL 和请求头。
 
+**示例智能体（DeepSeek 或任何 OpenAI 兼容 API）**
+
+[`examples/deepseek_agent.py`](examples/deepseek_agent.py) 是一个独立的智能体循环（只用 Python 标准库）。
+它每轮自动注入最新的 `observe`，控制上下文长度，并允许模型每轮调用多个工具，适合速度快、成本低的模型：
+
+```bash
+export DEEPSEEK_API_KEY=sk-...
+python3 examples/deepseek_agent.py --model <服务商提供的模型 id> \
+  --goal "砍木头，做一把木镐，然后挖 10 个圆石。"
+# 其他 OpenAI 兼容 API 用 --base-url；.minecraft 不在默认位置时用 --config
+```
+
 **用 curl 冒烟测试**
 
 ```bash
@@ -81,6 +95,8 @@ call '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_blocks
   "disablePauseOnLostFocus": true,
   "permissions": { "perception": true, "movement": true, "interaction": true, "inventory": true, "chat": true },
   "disabledTools": [],
+  "reflexes": { "autoDefend": true, "evadeCreepers": true, "chargeRanged": true, "autoEat": true,
+                "autoArmor": true, "escapeFluids": true, "interruptOnDamage": true, "eatBelowFood": 14 },
   "rateLimits": {
     "global":      { "perSecond": 20,  "burst": 40 },
     "perception":  { "perSecond": 0,   "burst": 0 },
@@ -101,6 +117,7 @@ call '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_blocks
 | `disablePauseOnLostFocus` | 窗口失焦时游戏不暂停，方便智能体在后台玩 |
 | `permissions.<类别>` | 设为 `false` 会隐藏该类别下的所有工具（见下表） |
 | `disabledTools` | 要隐藏的工具名，例如 `["attack_entity", "chat"]` |
+| `reflexes.*` | 每 tick 运行的生存反射，见[生存反射](#生存反射) |
 | `rateLimits.global` | 所有非控制类调用共享的令牌桶 |
 | `rateLimits.<类别>` | 每个类别额外的令牌桶；`perSecond: 0` 表示不限 |
 
@@ -131,6 +148,7 @@ call '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_blocks
 | `get_container` | perception 感知 | 当前打开的界面（箱子、熔炉、工作台、自己的背包），按格子和分区列出 |
 | `get_recipes` | perception 感知 | 已解锁的配方：原料、合成站、当前能否合成 |
 | `move` | movement 移动 | 按住 W/A/S/D/跳跃/潜行/疾跑 N 个 tick，可先转向指定 yaw |
+| `go_to` | movement 移动 | 走到某个位置或实体：疾跑、自动跳台阶，遇到岩浆/悬崖或受伤时停下 |
 | `look` | movement 移动 | 设置 yaw/pitch，或看向某个方块或实体 |
 | `break_block` | interaction 交互 | 挖掉一个方块 |
 | `place_block` | interaction 交互 | 把手持方块放进空格子（自动选择依附面） |
@@ -143,8 +161,41 @@ call '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_blocks
 | `transfer_items` | inventory 物品栏 | 在容器和背包之间 shift 点击整组物品 |
 | `craft` | inventory 物品栏 | 通过配方书合成 N 个物品（2x2 网格，或打开的工作台） |
 | `chat` | chat 聊天 | 发送聊天；只有开启 `allowCommands` 才能发 `/指令` |
-| `stop` | control 控制 | 松开所有按键、取消挖掘和合成，可选关闭界面 |
+| `stop` | control 控制 | 松开所有按键、取消挖掘、合成和行走，可选关闭界面 |
+| `batch` | control 控制 | 一次请求按顺序执行最多 8 个工具调用（每一步都单独检查权限和限流） |
+| `set_reflexes` | control 控制 | 运行时查看或开关生存反射 |
 | `ping` | control 控制 | 存活检查 |
+
+### 生存反射
+
+大模型每做一次决定要几秒，而僵尸每秒打一下，苦力怕开始嘶嘶响后 1.5 秒就会爆炸。所以模组会在智能体两轮之间
+每 tick 自己做出反应：
+
+| 反射 | 作用 |
+|---|---|
+| `autoDefend` | 攻击冷却满时，用快捷栏里最好的剑/斧攻击近战范围内的敌对生物，打完切回原来的格子 |
+| `evadeCreepers` | 击退靠近的苦力怕，然后转身疾跑，直到离开爆炸范围 |
+| `chargeRanged` | 生命值 ≥ 8 时冲向视线内的骷髅/流浪者/掠夺者/女巫（远程怪站着打必输） |
+| `autoEat` | 饥饿且 6 格内没有敌人时，吃快捷栏里最合适的安全食物（不吃腐肉；金苹果只在紧急时吃） |
+| `autoArmor` | 把背包里的护甲穿到空的护甲槽，优先好材质 |
+| `escapeFluids` | 氧气不足时上浮，掉进岩浆时跳出来 |
+| `interruptOnDamage` | 受伤时，正在执行的 `move`/`go_to`/`break_block` 立即返回 `interrupted: took damage from …` |
+
+`observe` 会返回 `threats`（16 格内的敌对生物，按距离排序，苦力怕带 `hissing`）和 `events`（自上次 `observe`
+以来受到的伤害、反射做了什么、击杀）；移动类工具的结果里也带 `threats`。每个反射只有在服主允许它所模仿的工具时
+才会运行，所以 `permissions.interaction: false` 或 `"disabledTools": ["attack_entity"]` 也会关闭自动防御。
+智能体可以用 `set_reflexes` 关掉反射，自己手动战斗。
+
+在普通难度服务器的夜晚实测，智能体**完全不操作**（快捷栏有石剑和面包，无护甲），怪物生成在 5 格外：
+
+| 场景 | 关闭反射 | 开启反射 |
+|---|---|---|
+| 1 只苦力怕 | 剩 1 点血 | 无伤 |
+| 3 只苦力怕 | – | 无伤 |
+| 3 只僵尸 | 9 秒内死亡 | 全部击杀，最低 14 点血 |
+| 6 只僵尸 | – | 全部击杀，最低 15 点血 |
+| 2 只骷髅 | 15 秒内死亡 | 通常两只都击杀，最低 3–10 点血 |
+| 4 只尸壳 | – | 全部击杀，最低 4.7 点血 |
 
 ### 读取方块
 
@@ -244,7 +295,8 @@ src/client/java/com/mcagent/mcp/client/
   McAgentClient.java          入口：组装、生命周期、给智能体的玩法说明
   GameBridge.java             切换到客户端主线程
   ChatLog.java                有界聊天记录
-  control/AgentControl.java   持续动作：按住的按键、使用键、挖掘、界面脚本
+  control/AgentControl.java   持续动作：按住的按键、使用键、挖掘、界面脚本、go_to
+  reflex/                     每 tick 的生存反射 + 纯逻辑的武器/食物/护甲选择
   blocks/                     扫描器、编码器、变化追踪
   inventory/                  界面读取、配方书、合成任务、纯逻辑的物品转移规划
   mixin/                      ClientLevel、KeyboardInput、Minecraft 的挂钩
@@ -260,14 +312,15 @@ checks/                       离线测试套件
 
 | 检查 | 覆盖内容 |
 |---|---|
-| `ProtocolTest` | initialize/会话/instructions、tools/list（隐藏工具、annotations）、tools/call、`isError`、JSON-RPC 错误、批量请求、401、403 `Origin`、413、权限拒绝、限流、202、405、DELETE |
+| `ProtocolTest` | initialize/会话/instructions、tools/list（隐藏工具、annotations）、tools/call、`isError`、JSON-RPC 错误、批量请求、`batch` 工具（顺序、遇到被拒步骤即停、禁止嵌套）、401、403 `Origin`、413、权限拒绝、限流、202、405、DELETE |
 | `SseSelfTest` | 端到端 SSE 推送、推送期间并发 POST、DELETE 关闭推送流 |
 | `CodecTest` | `rle` 往返、`layers` 几何与图例、`json` 跳过空气 |
 | `DiffLogicTest` | 基线、出现/消失、区块卸载、溢出 → resync、稀疏空气 |
 | `ArgsTest` | 参数校验、聊天记录分页 |
 | `InventoryMathTest` | 转移时的整组选择、2x2 与 3x3 网格适配、物品 id 规范化 |
-| `PolicyTest` | 令牌桶计时（假时钟）、权限、控制类豁免、配置解析与往返 |
-| `ToolSchemaTest` | 全部 26 个工具：名称唯一、类别已设置、JSON Schema 格式正确 |
+| `PolicyTest` | 令牌桶计时（假时钟）、权限、控制类豁免、配置解析与往返、反射设置 |
+| `ReflexMathTest` | 武器 DPS 排序、食物选择（按缺口、不安全/珍贵食物）、护甲等级 |
+| `ToolSchemaTest` | 全部 29 个工具：名称唯一、类别已设置、JSON Schema 格式正确 |
 
 ### 实机测试
 
@@ -295,7 +348,9 @@ java -jar minecraft-server.jar --nogui     # 控制台可用 /give、/setblock�
 - **M5** ✅ 行动：移动、转向、挖掘、放置、交互、攻击、使用、聊天、重生、停止
 - **M6** ✅ 容器和配方书合成
 - **M7** ✅ 加固：权限、速率限制、请求限制、工具 annotations、双语文档
-- **下一步**：示例智能体和演示视频；可选的 `pathfind_to`（通过 Baritone，LGPL，仅作为外部依赖）
+- **M8** ✅ 让快速/低成本模型也能玩：生存反射、受伤中断、`go_to`、`batch`、`observe` 中的威胁和事件、
+  DeepSeek 示例智能体
+- **下一步**：演示视频；可选的 `pathfind_to`（通过 Baritone，LGPL，仅作为外部依赖）
 
 ## 许可证
 

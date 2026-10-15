@@ -1,6 +1,7 @@
 import com.mcagent.mcp.server.McpHttpServer;
 import com.mcagent.mcp.server.McpProtocol;
 import com.mcagent.mcp.server.NotificationBus;
+import com.mcagent.mcp.tools.BatchTool;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.PingTool;
 import com.mcagent.mcp.tools.ToolCategory;
@@ -37,6 +38,7 @@ public class ProtocolTest {
 		// chat disabled; movement limited to one call per 2 s
 		ToolPolicy policy = new ToolPolicy().setEnabled(ToolCategory.CHAT, false).limit(ToolCategory.MOVEMENT, 0.5, 1);
 		McpProtocol protocol = new McpProtocol(reg, "mc-agent-mcp", "0.1.0-test", "test playbook", policy);
+		reg.register(new BatchTool(protocol::invokeTool));
 		NotificationBus bus = new NotificationBus();
 		McpHttpServer server = new McpHttpServer(protocol, bus, "127.0.0.1", 27994, TOKEN);
 		server.start();
@@ -75,6 +77,20 @@ public class ProtocolTest {
 		check("first call within limit", !walk1.body.contains("isError"));
 		check("second call rate limited with retryAfterMs", walk2.body.contains("\"isError\":true")
 				&& walk2.body.contains("retryAfterMs"));
+
+		// batch: ping ok, then a disabled tool stops the run; nesting is refused
+		Resp toolBatch = post("{\"jsonrpc\":\"2.0\",\"id\":24,\"method\":\"tools/call\",\"params\":{\"name\":\"batch\","
+				+ "\"arguments\":{\"steps\":[{\"tool\":\"ping\"},{\"tool\":\"secret_chat\"},{\"tool\":\"ping\"}]}}}", session);
+		check("batch runs steps in order", toolBatch.body.contains("\"pong\":true"));
+		check("batch stops at a denied step", toolBatch.body.contains("\"completedSteps\":2")
+				&& toolBatch.body.contains("permissions.chat"));
+		Resp toolBatch2 = post("{\"jsonrpc\":\"2.0\",\"id\":25,\"method\":\"tools/call\",\"params\":{\"name\":\"batch\","
+				+ "\"arguments\":{\"continueOnError\":true,\"steps\":[{\"tool\":\"batch\"},{\"tool\":\"ping\"}]}}}", session);
+		check("batch refuses nesting, continueOnError keeps going", toolBatch2.body.contains("cannot be nested")
+				&& toolBatch2.body.contains("\"completedSteps\":2"));
+		Resp toolBatch3 = post("{\"jsonrpc\":\"2.0\",\"id\":26,\"method\":\"tools/call\",\"params\":{\"name\":\"batch\","
+				+ "\"arguments\":{\"steps\":[]}}}", session);
+		check("empty batch -> isError", toolBatch3.body.contains("\"isError\":true"));
 
 		// oversized body
 		Resp huge = post("{\"jsonrpc\":\"2.0\",\"id\":23,\"method\":\"ping\",\"pad\":\""

@@ -94,6 +94,14 @@ public class PolicyTest {
 
 		McAgentConfig round = McAgentConfig.fromJson(cfg.toJson());
 		check("toJson/fromJson round-trip", round.toJson().equals(cfg.toJson()));
+		check("reflexes default on", def.reflexes.autoDefend && def.reflexes.autoEat && def.reflexes.interruptOnDamage);
+		McAgentConfig rcfg = McAgentConfig.fromJson(JsonParser.parseString(
+				"{\"reflexes\":{\"autoDefend\":false,\"eatBelowFood\":99}}").getAsJsonObject());
+		check("reflex switch parsed", !rcfg.reflexes.autoDefend && rcfg.reflexes.autoEat);
+		check("eatBelowFood clamped to 20", rcfg.reflexes.eatBelowFood == 20);
+		check("allows() follows category + disabledTools", !p.allows("attack_entity", ToolCategory.INTERACTION)
+				&& p.allows("break_block", ToolCategory.INTERACTION) && !p.allows("anything", ToolCategory.CHAT)
+				&& p.allows("stop", ToolCategory.CONTROL));
 		check("written config lists every option", cfg.toJson().has("rateLimits")
 				&& cfg.toJson().getAsJsonObject("permissions").size() == ToolCategory.values().length - 1);
 
