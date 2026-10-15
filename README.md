@@ -10,8 +10,9 @@ and play the game directly.
 - **Protocol**: MCP spec `2025-06-18`
 - **Client-side mod**: it drives the local player; nothing is exposed beyond loopback
 
-> Status: **M5 complete** — perception (blocks, entities, inventory, chat) and actuation
-> (move, look, mine, place, attack, use, chat). An AI agent can now play the game end to end.
+> Status: **M6 complete** — perception (blocks, entities, inventory, chat), actuation
+> (move, look, mine, place, attack, use, chat) and containers + crafting. An AI agent can now
+> play survival end to end: gather, craft tools, smelt, store loot.
 > See the roadmap at the end.
 
 ## Build
@@ -119,7 +120,27 @@ one of them per session.
 | `chat` | ✅ | send chat; `/commands` only with `allowCommands` |
 | `respawn` | ✅ | respawn after death |
 | `stop` | ✅ | release all keys, cancel mining, optionally close the open GUI |
+| `get_container` | ✅ | open menu (chest, furnace, crafting table, or own inventory): slots by section, cursor, furnace progress |
+| `click_slot` | ✅ | one raw click: left/right/shift/swap/drop/collect, `-999` = outside |
+| `transfer_items` | ✅ | shift-click stacks between container and inventory, filtered by item/count |
+| `get_recipes` | ✅ | unlocked recipes: ingredients, `station` (2x2 inventory / crafting table / furnace), `craftable` now |
+| `craft` | ✅ | craft N items via the recipe book (2x2 grid, or an opened crafting table) |
 | `pathfind_to` | 🔜 later | optional Baritone integration (LGPL, kept as external dep) |
+
+### Crafting and containers
+
+```
+get_recipes {item:"wooden_pickaxe"}       -> station "crafting_table", ingredients
+craft {item:"oak_planks", count:12}       -> 2x2 grid, no table needed
+place_block {pos} + interact_block {pos}  -> open the crafting table
+craft {item:"wooden_pickaxe"}             -> crafted in the 3x3 grid
+interact_block {furnace}; transfer_items {to:"container", item:"raw_iron"};
+transfer_items {to:"container", item:"coal"}; ... transfer_items {to:"player", item:"iron_ingot"}
+```
+
+`craft` drives the recipe book like a player: place the recipe (the server fills the grid), wait
+for the result slot, shift-click it, repeat until `count` is reached. Only unlocked recipes can be
+placed, which matches vanilla survival; anything else can still be done by hand with `click_slot`.
 
 ### Actuation model
 
@@ -204,14 +225,33 @@ Everything that can be verified without a GPU or a Minecraft account:
 | `CodecTest` | `rle` round-trip, `layers` geometry/legend, `json` air skipping, stats |
 | `DiffLogicTest` | baseline, appeared/removed with old/new ids, chunk unload, overflow → resync, sparse air |
 | `ArgsTest` | argument validation (ranges, integer-only positions, enums → `ToolException`), chat log paging |
-| `ToolSchemaTest` | all 22 tools: unique names, well-formed JSON Schema (types, `enum` arrays, `required`, `items`) |
+| `InventoryMathTest` | transfer stack selection (largest first, filters, overshoot), 2x2 vs 3x3 grid fit, item id normalisation |
+| `ToolSchemaTest` | all 27 tools: unique names, well-formed JSON Schema (types, `enum` arrays, `required`, `items`) |
 
 `CodecBench` (`./.jdk21/bin/java -cp .harness/classes:build/classes/java/client:<gson> CodecBench`)
 prints the numbers in the table above.
 
-**Not covered offline** (needs a real game launch): mixin application at runtime, live chunk
-scanning, SSE pushes from an actual world, and the effect of actuation tools on a real player.
-`./gradlew runClient` + the curl commands above are the manual test path.
+**Not covered offline**: mixin application at runtime, live chunk scanning, SSE pushes from an
+actual world, and the effect of actuation tools on a real player. These are tested in-game:
+
+```bash
+# 1. a local offline-mode server (Loom already cached the jar), flat world, peaceful
+mkdir -p /tmp/mcsrv && cd /tmp/mcsrv && cp <repo>/.gradle-home/caches/fabric-loom/1.21.11/minecraft-server.jar .
+echo eula=true > eula.txt
+printf 'online-mode=false\nserver-port=25599\nlevel-type=minecraft\\:flat\ndifficulty=peaceful\nspawn-protection=0\n' > server.properties
+java -jar minecraft-server.jar --nogui        # console: /give, /setblock, /summon to stage scenarios
+# 2. the dev client joins it directly (set onboardAccessibility:false in run/options.txt first)
+./gradlew runClient --args="--quickPlayMultiplayer 127.0.0.1:25599"
+```
+
+Then drive the tools over HTTP as in the smoke test above. Every tool in the table has been run this
+way in survival: walking/sprint-jumping, 2x2 and 3x3 crafting from logs to a wooden pickaxe,
+mining with correct tool speeds and drops, placing, chests, furnace smelting and output, combat,
+shearing, eating, chat in/out, death and respawn, and live block-diff pushes.
+
+Known limitation: while an SSE stream is connected, block diffs go to the stream instead of the
+`get_block_changes` queue. A client that disconnects without `DELETE /mcp` is only noticed on the
+next heartbeat (15 s), so diffs in that window are lost; poll clients should not also open SSE.
 
 ## Layout
 
@@ -243,6 +283,12 @@ src/client/java/com/mcagent/mcp/client/
   tools/MoveTool.java, LookTool.java, BreakBlockTool.java, PlaceBlockTool.java,
   tools/AttackTool.java, UseItemTool.java, SelectSlotTool.java, ChatTool.java,
   tools/RespawnTool.java, StopTool.java                                  M5 actuation
+  tools/GetContainerTool.java, ClickSlotTool.java, TransferItemsTool.java,
+  tools/GetRecipesTool.java, CraftTool.java                              M6 containers + crafting
+  inventory/MenuReader.java   menu/slot description (sections, carried, furnace)
+  inventory/Recipes.java      client recipe book: results, stations, craftability
+  inventory/CraftTask.java    tick-driven recipe-book crafting
+  inventory/InventoryMath.java  pure transfer/grid-fit logic (unit-tested)
   blocks/BlockScanner.java   section-level scanning
   blocks/BlockCodec.java     rle / layers / json encoders
   blocks/BlockDiffTracker.java     change tracking + per-chunk snapshots
@@ -260,7 +306,7 @@ checks/                      offline check suite (see above)
 - **M4** ✅ perception: `get_entities`, `get_inventory`, `get_chat`
 - **M5** ✅ actuation: `move`, `look`, `break_block`, `place_block`, `interact_*`, `attack_entity`,
   `use_item`, `select_slot`, `chat`, `respawn`, `stop`
-- **M6** containers + crafting: read/click open container slots, recipe-book crafting, smelting
+- **M6** ✅ containers + crafting: `get_container`, `click_slot`, `transfer_items`, `get_recipes`, `craft`
 - **M7** hardening + docs: rate limits, per-tool permissions, example agent, demo video
 - **Later** optional `pathfind_to` via Baritone as an *external* dependency
 

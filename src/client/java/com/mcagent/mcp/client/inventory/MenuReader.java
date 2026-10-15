@@ -6,6 +6,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.inventory.AbstractContainerMenu;
+import net.minecraft.world.inventory.AbstractCraftingMenu;
 import net.minecraft.world.inventory.AbstractFurnaceMenu;
 import net.minecraft.world.inventory.CraftingContainer;
 import net.minecraft.world.inventory.FurnaceFuelSlot;
@@ -99,8 +100,9 @@ public final class MenuReader {
 		List<InventoryMath.Stack> out = new ArrayList<>();
 		for (Slot slot : menu.slots) {
 			if (isPlayerSlot(slot) != playerSide || !slot.hasItem()) continue;
-			// Never pull from a result slot implicitly: taking it crafts/consumes ingredients.
-			if (!playerSide && "result".equals(section(slot))) continue;
+			// Never pull a crafting result implicitly: taking it consumes the grid's ingredients.
+			// Furnace output is just a finished product and is the main thing to take.
+			if (!playerSide && menu instanceof AbstractCraftingMenu && "result".equals(section(slot))) continue;
 			out.add(new InventoryMath.Stack(slot.index, itemId(slot.getItem()), slot.getItem().getCount()));
 		}
 		return out;
