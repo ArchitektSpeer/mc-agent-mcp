@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.mcagent.mcp.client.GameBridge;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 
@@ -18,6 +19,11 @@ public final class RespawnTool implements McpTool {
 	@Override
 	public String name() {
 		return "respawn";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.INTERACTION;
 	}
 
 	@Override

@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.mcagent.mcp.client.GameBridge;
 import com.mcagent.mcp.client.blocks.BlockDiffTracker;
 import com.mcagent.mcp.tools.McpTool;
+import com.mcagent.mcp.tools.ToolCategory;
 
 /**
  * subscribe_blocks: start/stop/status of the block-change subscription.
@@ -23,6 +24,11 @@ public final class SubscribeBlocksTool implements McpTool {
 	@Override
 	public String name() {
 		return "subscribe_blocks";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.PERCEPTION;
 	}
 
 	@Override

@@ -7,6 +7,7 @@ import com.mcagent.mcp.client.control.AgentControl;
 import com.mcagent.mcp.tools.Args;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
@@ -46,6 +47,11 @@ public final class PlaceBlockTool implements McpTool {
 	@Override
 	public String name() {
 		return interact ? "interact_block" : "place_block";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.INTERACTION;
 	}
 
 	@Override

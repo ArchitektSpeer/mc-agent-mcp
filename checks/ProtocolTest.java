@@ -3,6 +3,8 @@ import com.mcagent.mcp.server.McpProtocol;
 import com.mcagent.mcp.server.NotificationBus;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.PingTool;
+import com.mcagent.mcp.tools.ToolCategory;
+import com.mcagent.mcp.tools.ToolPolicy;
 import com.mcagent.mcp.tools.ToolRegistry;
 import com.google.gson.JsonObject;
 
@@ -25,11 +27,16 @@ public class ProtocolTest {
 		reg.register(new PingTool());
 		reg.register(new McpTool() {
 			@Override public String name() { return "boom"; }
+			@Override public ToolCategory category() { return ToolCategory.INTERACTION; }
 			@Override public String description() { return "always fails"; }
 			@Override public JsonObject inputSchema() { return new JsonObject(); }
 			@Override public JsonObject call(JsonObject args) { throw new ToolException("intentional failure"); }
 		});
-		McpProtocol protocol = new McpProtocol(reg, "mc-agent-mcp", "0.1.0-test", "test playbook");
+		reg.register(simple("secret_chat", ToolCategory.CHAT));
+		reg.register(simple("walk", ToolCategory.MOVEMENT));
+		// chat disabled; movement limited to one call per 2 s
+		ToolPolicy policy = new ToolPolicy().setEnabled(ToolCategory.CHAT, false).limit(ToolCategory.MOVEMENT, 0.5, 1);
+		McpProtocol protocol = new McpProtocol(reg, "mc-agent-mcp", "0.1.0-test", "test playbook", policy);
 		NotificationBus bus = new NotificationBus();
 		McpHttpServer server = new McpHttpServer(protocol, bus, "127.0.0.1", 27994, TOKEN);
 		server.start();
@@ -53,6 +60,26 @@ public class ProtocolTest {
 		Resp list = post("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}", session);
 		check("tools/list lists both tools", list.body.contains("\"ping\"") && list.body.contains("\"boom\""));
 		check("tools/list includes inputSchema", list.body.contains("inputSchema"));
+		check("tools/list hides disabled tools", !list.body.contains("secret_chat"));
+		check("tools/list carries annotations", list.body.contains("\"readOnlyHint\""));
+
+		// permissions + rate limits
+		Resp denied = post("{\"jsonrpc\":\"2.0\",\"id\":20,\"method\":\"tools/call\",\"params\":"
+				+ "{\"name\":\"secret_chat\",\"arguments\":{}}}", session);
+		check("disabled tool -> isError with config hint", denied.body.contains("\"isError\":true")
+				&& denied.body.contains("permissions.chat"));
+		Resp walk1 = post("{\"jsonrpc\":\"2.0\",\"id\":21,\"method\":\"tools/call\",\"params\":"
+				+ "{\"name\":\"walk\",\"arguments\":{}}}", session);
+		Resp walk2 = post("{\"jsonrpc\":\"2.0\",\"id\":22,\"method\":\"tools/call\",\"params\":"
+				+ "{\"name\":\"walk\",\"arguments\":{}}}", session);
+		check("first call within limit", !walk1.body.contains("isError"));
+		check("second call rate limited with retryAfterMs", walk2.body.contains("\"isError\":true")
+				&& walk2.body.contains("retryAfterMs"));
+
+		// oversized body
+		Resp huge = post("{\"jsonrpc\":\"2.0\",\"id\":23,\"method\":\"ping\",\"pad\":\""
+				+ "x".repeat(McpHttpServer.MAX_BODY_BYTES) + "\"}", session);
+		check("body over 1 MiB -> 413", huge.code == 413);
 
 		// tools/call ok
 		Resp call = post("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":"
@@ -116,6 +143,16 @@ public class ProtocolTest {
 		server.stop();
 		System.out.println(failures == 0 ? "PROTOCOL: PASS" : "PROTOCOL: FAIL (" + failures + ")");
 		if (failures != 0) System.exit(1);
+	}
+
+	static McpTool simple(String name, ToolCategory cat) {
+		return new McpTool() {
+			@Override public String name() { return name; }
+			@Override public ToolCategory category() { return cat; }
+			@Override public String description() { return name; }
+			@Override public JsonObject inputSchema() { return new JsonObject(); }
+			@Override public JsonObject call(JsonObject args) { return new JsonObject(); }
+		};
 	}
 
 	static void check(String what, boolean ok) {

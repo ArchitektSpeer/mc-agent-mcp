@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.mcagent.mcp.client.GameBridge;
 import com.mcagent.mcp.client.blocks.BlockDiffTracker;
 import com.mcagent.mcp.tools.McpTool;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.block.Block;
 
@@ -27,6 +28,11 @@ public final class GetBlockChangesTool implements McpTool {
 	@Override
 	public String name() {
 		return "get_block_changes";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.PERCEPTION;
 	}
 
 	@Override

@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.mcagent.mcp.client.GameBridge;
 import com.mcagent.mcp.client.blocks.BlockScanner;
 import com.mcagent.mcp.tools.McpTool;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
@@ -33,6 +34,11 @@ public final class ScanBlocksTool implements McpTool {
 	@Override
 	public String name() {
 		return "scan_blocks";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.PERCEPTION;
 	}
 
 	@Override

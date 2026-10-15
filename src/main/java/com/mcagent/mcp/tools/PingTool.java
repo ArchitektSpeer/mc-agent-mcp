@@ -10,6 +10,11 @@ public final class PingTool implements McpTool {
 	}
 
 	@Override
+	public ToolCategory category() {
+		return ToolCategory.CONTROL;
+	}
+
+	@Override
 	public String description() {
 		return "Liveness check. Returns pong, the mod version and server uptime in milliseconds.";
 	}

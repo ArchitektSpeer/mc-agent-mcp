@@ -97,6 +97,7 @@ public class ToolSchemaTest {
 		for (McpTool t : tools) {
 			System.out.println("-- " + t.name());
 			check("  name is set", t.name() != null && !t.name().isBlank());
+			check("  category is set", t.category() != null);
 			check("  description tells the agent what it does",
 					t.description() != null && t.description().length() > 20);
 			JsonObject schema = t.inputSchema();

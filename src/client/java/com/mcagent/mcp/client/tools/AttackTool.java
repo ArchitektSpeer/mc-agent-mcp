@@ -6,6 +6,7 @@ import com.mcagent.mcp.client.control.AgentControl;
 import com.mcagent.mcp.tools.Args;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.InteractionHand;
@@ -34,6 +35,11 @@ public final class AttackTool implements McpTool {
 	@Override
 	public String name() {
 		return interact ? "interact_entity" : "attack_entity";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.INTERACTION;
 	}
 
 	@Override

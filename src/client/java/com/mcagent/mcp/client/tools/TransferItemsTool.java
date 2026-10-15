@@ -7,6 +7,7 @@ import com.mcagent.mcp.client.inventory.MenuReader;
 import com.mcagent.mcp.tools.Args;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;
@@ -26,6 +27,11 @@ public final class TransferItemsTool implements McpTool {
 	@Override
 	public String name() {
 		return "transfer_items";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.INVENTORY;
 	}
 
 	@Override

@@ -8,6 +8,7 @@ import com.mcagent.mcp.client.inventory.Recipes;
 import com.mcagent.mcp.tools.Args;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
 
 /** get_recipes: unlocked recipes from the recipe book, with ingredients and craftability. */
@@ -21,6 +22,11 @@ public final class GetRecipesTool implements McpTool {
 	@Override
 	public String name() {
 		return "get_recipes";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.PERCEPTION;
 	}
 
 	@Override

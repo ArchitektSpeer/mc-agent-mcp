@@ -5,6 +5,7 @@ import com.mcagent.mcp.client.ChatLog;
 import com.mcagent.mcp.tools.Args;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 
 /** get_chat: read received chat/system messages since a sequence number. */
 public final class GetChatTool implements McpTool {
@@ -17,6 +18,11 @@ public final class GetChatTool implements McpTool {
 	@Override
 	public String name() {
 		return "get_chat";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.PERCEPTION;
 	}
 
 	@Override

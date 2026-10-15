@@ -5,6 +5,7 @@ import com.mcagent.mcp.client.GameBridge;
 import com.mcagent.mcp.tools.Args;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 
 /** chat: send a chat message, or a /command when the config allows it. */
 public final class ChatTool implements McpTool {
@@ -21,6 +22,11 @@ public final class ChatTool implements McpTool {
 	@Override
 	public String name() {
 		return "chat";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.CHAT;
 	}
 
 	@Override

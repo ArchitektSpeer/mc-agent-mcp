@@ -5,6 +5,7 @@ import com.mcagent.mcp.client.GameBridge;
 import com.mcagent.mcp.tools.Args;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.player.LocalPlayer;
 
 /** select_slot: choose the active hotbar slot, optionally dropping items from it. */
@@ -18,6 +19,11 @@ public final class SelectSlotTool implements McpTool {
 	@Override
 	public String name() {
 		return "select_slot";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.INVENTORY;
 	}
 
 	@Override
