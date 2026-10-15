@@ -131,7 +131,7 @@ public class McAgentClient implements ClientModInitializer {
 		registry.register(new GoToTool(bridge, control));
 		registry.register(new LookTool(bridge));
 		registry.register(new BreakBlockTool(bridge, control));
-		registry.register(PlaceBlockTool.place(bridge));
+		registry.register(PlaceBlockTool.place(bridge, control));
 		registry.register(PlaceBlockTool.interact(bridge));
 		registry.register(AttackTool.attack(bridge));
 		registry.register(AttackTool.interact(bridge));

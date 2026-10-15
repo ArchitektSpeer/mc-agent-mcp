@@ -71,7 +71,7 @@ public class ToolSchemaTest {
 		tools.add(new MoveTool(null, control));
 		tools.add(new LookTool(null));
 		tools.add(new BreakBlockTool(null, control));
-		tools.add(PlaceBlockTool.place(null));
+		tools.add(PlaceBlockTool.place(null, control));
 		tools.add(PlaceBlockTool.interact(null));
 		tools.add(AttackTool.attack(null));
 		tools.add(AttackTool.interact(null));
