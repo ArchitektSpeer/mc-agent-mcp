@@ -174,7 +174,7 @@ perception, `destructiveHint` for interaction and inventory).
 | `go_to` | movement | walk to a position or entity: sprints, jumps steps, stops before lava/cliffs and when hurt |
 | `look` | movement | set yaw/pitch, or face a block or entity |
 | `break_block` | interaction | mine a block until it breaks |
-| `place_block` | interaction | place the held block into an empty cell (support face chosen automatically) |
+| `place_block` | interaction | place the held block into an empty cell (support face chosen automatically); your own feet cell pillars up; refusals are explained |
 | `interact_block` | interaction | right-click a block: doors, chests, crafting tables, beds, buttons |
 | `attack_entity` / `interact_entity` | interaction | left / right click an entity |
 | `use_item` | interaction | right-click in the air; `ticks` holds it (eat, drink, bow, shield) |
