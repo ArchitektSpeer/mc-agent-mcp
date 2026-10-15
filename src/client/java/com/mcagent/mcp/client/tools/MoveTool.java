@@ -6,6 +6,7 @@ import com.mcagent.mcp.client.control.AgentControl;
 import com.mcagent.mcp.tools.Args;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Input;
 
@@ -24,6 +25,11 @@ public final class MoveTool implements McpTool {
 	@Override
 	public String name() {
 		return "move";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.MOVEMENT;
 	}
 
 	@Override

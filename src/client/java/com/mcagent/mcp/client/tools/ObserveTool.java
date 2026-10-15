@@ -5,6 +5,7 @@ import com.mcagent.mcp.client.GameBridge;
 import com.mcagent.mcp.client.blocks.BlockScanner;
 import com.mcagent.mcp.client.control.AgentControl;
 import com.mcagent.mcp.tools.McpTool;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -26,6 +27,11 @@ public final class ObserveTool implements McpTool {
 	@Override
 	public String name() {
 		return "observe";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.PERCEPTION;
 	}
 
 	@Override

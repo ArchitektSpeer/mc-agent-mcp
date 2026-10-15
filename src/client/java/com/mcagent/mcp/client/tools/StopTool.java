@@ -6,6 +6,7 @@ import com.mcagent.mcp.client.control.AgentControl;
 import com.mcagent.mcp.tools.Args;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.Minecraft;
 
 /** stop: release all held keys, cancel mining, optionally close the open screen. */
@@ -21,6 +22,11 @@ public final class StopTool implements McpTool {
 	@Override
 	public String name() {
 		return "stop";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.CONTROL;
 	}
 
 	@Override

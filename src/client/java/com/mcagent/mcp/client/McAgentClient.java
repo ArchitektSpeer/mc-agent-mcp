@@ -75,7 +75,8 @@ public class McAgentClient implements ClientModInitializer {
 			Chests/furnaces: interact_block opens them, get_container lists slots, transfer_items moves stacks
 			(to='container' into a furnace fills fuel/input automatically), click_slot does single clicks.
 			Close GUIs with stop {closeScreen:true}.
-			stop cancels any running action.""";
+			stop cancels any running action.
+			The server owner may disable tools or rate-limit them; on a rate-limit error wait retryAfterMs.""";
 
 	private static McpHttpServer server;
 
@@ -133,7 +134,7 @@ public class McAgentClient implements ClientModInitializer {
 		registry.register(new GetRecipesTool(bridge));
 		registry.register(new CraftTool(bridge, control));
 
-		McpProtocol protocol = new McpProtocol(registry, "mc-agent-mcp", version, INSTRUCTIONS);
+		McpProtocol protocol = new McpProtocol(registry, "mc-agent-mcp", version, INSTRUCTIONS, config.toPolicy());
 		server = new McpHttpServer(protocol, bus, config.bindAddress, config.port, config.authToken);
 		try {
 			server.start();

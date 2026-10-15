@@ -4,6 +4,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonNull;
 import com.google.gson.JsonObject;
 import com.mcagent.mcp.tools.McpTool;
+import com.mcagent.mcp.tools.ToolPolicy;
 import com.mcagent.mcp.tools.ToolRegistry;
 
 /**
@@ -18,20 +19,28 @@ public final class McpProtocol {
 	private final String serverName;
 	private final String serverVersion;
 	private final String instructions;
+	private final ToolPolicy policy;
 
 	public McpProtocol(ToolRegistry registry, String serverName, String serverVersion) {
 		this(registry, serverName, serverVersion, null);
 	}
 
+	public McpProtocol(ToolRegistry registry, String serverName, String serverVersion, String instructions) {
+		this(registry, serverName, serverVersion, instructions, ToolPolicy.allowAll());
+	}
+
 	/**
 	 * @param instructions optional usage guide returned by initialize; MCP clients typically add
 	 *                     it to the model's system prompt
+	 * @param policy       permissions and rate limits applied to tools/list and tools/call
 	 */
-	public McpProtocol(ToolRegistry registry, String serverName, String serverVersion, String instructions) {
+	public McpProtocol(ToolRegistry registry, String serverName, String serverVersion, String instructions,
+					   ToolPolicy policy) {
 		this.registry = registry;
 		this.serverName = serverName;
 		this.serverVersion = serverVersion;
 		this.instructions = instructions;
+		this.policy = policy;
 	}
 
 	/**
@@ -62,7 +71,7 @@ public final class McpProtocol {
 		return switch (method) {
 			case "initialize" -> JsonRpc.result(id, initializeResult());
 			case "ping" -> JsonRpc.result(id, new JsonObject());
-			case "tools/list" -> JsonRpc.result(id, registry.listPayload());
+			case "tools/list" -> JsonRpc.result(id, registry.listPayload(policy::isExposed));
 			case "tools/call" -> JsonRpc.result(id, callTool(params));
 			default -> JsonRpc.error(id, JsonRpc.METHOD_NOT_FOUND, "unknown method: " + method);
 		};
@@ -97,6 +106,13 @@ public final class McpProtocol {
 		McpTool tool = registry.get(name);
 		if (tool == null) {
 			return toolErrorResult("unknown tool: " + name);
+		}
+		ToolPolicy.Decision decision = policy.check(tool);
+		if (!decision.allowed()) {
+			JsonObject payload = new JsonObject();
+			payload.addProperty("error", decision.reason());
+			if (decision.retryAfterMs() > 0) payload.addProperty("retryAfterMs", decision.retryAfterMs());
+			return toolResult(payload, true);
 		}
 		JsonObject args = params.has("arguments") && params.get("arguments").isJsonObject()
 				? params.getAsJsonObject("arguments") : new JsonObject();

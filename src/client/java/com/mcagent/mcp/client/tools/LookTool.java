@@ -6,6 +6,7 @@ import com.mcagent.mcp.client.control.AgentControl;
 import com.mcagent.mcp.tools.Args;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.util.Mth;
@@ -23,6 +24,11 @@ public final class LookTool implements McpTool {
 	@Override
 	public String name() {
 		return "look";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.MOVEMENT;
 	}
 
 	@Override

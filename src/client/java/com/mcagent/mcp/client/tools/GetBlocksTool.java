@@ -6,6 +6,7 @@ import com.mcagent.mcp.client.GameBridge;
 import com.mcagent.mcp.client.blocks.BlockCodec;
 import com.mcagent.mcp.client.blocks.BlockScanner;
 import com.mcagent.mcp.tools.McpTool;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 
@@ -22,6 +23,11 @@ public final class GetBlocksTool implements McpTool {
 	@Override
 	public String name() {
 		return "get_blocks";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.PERCEPTION;
 	}
 
 	@Override

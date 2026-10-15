@@ -5,6 +5,7 @@ import com.mcagent.mcp.client.GameBridge;
 import com.mcagent.mcp.client.inventory.MenuReader;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.Minecraft;
 
 /** get_container: the open container (chest, furnace, crafting table...) or the player's own inventory menu. */
@@ -18,6 +19,11 @@ public final class GetContainerTool implements McpTool {
 	@Override
 	public String name() {
 		return "get_container";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.PERCEPTION;
 	}
 
 	@Override

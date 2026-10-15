@@ -5,6 +5,7 @@ import com.google.gson.JsonObject;
 import com.mcagent.mcp.client.GameBridge;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.player.Inventory;
 
@@ -19,6 +20,11 @@ public final class GetInventoryTool implements McpTool {
 	@Override
 	public String name() {
 		return "get_inventory";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.PERCEPTION;
 	}
 
 	@Override

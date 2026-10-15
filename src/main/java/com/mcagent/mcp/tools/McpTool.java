@@ -8,6 +8,9 @@ public interface McpTool {
 
 	String description();
 
+	/** What the tool can do; drives permissions and rate limits ({@link ToolPolicy}). */
+	ToolCategory category();
+
 	/** JSON Schema (draft 2020-12 style object) describing the arguments. */
 	JsonObject inputSchema();
 

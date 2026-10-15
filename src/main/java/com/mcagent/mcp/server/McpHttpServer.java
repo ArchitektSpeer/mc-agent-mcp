@@ -36,6 +36,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class McpHttpServer {
 	private static final Logger LOGGER = LoggerFactory.getLogger("mc-agent-mcp");
+	/** Largest accepted POST body; real MCP messages are a few KB. */
+	public static final int MAX_BODY_BYTES = 1 << 20;
 
 	private final McpProtocol protocol;
 	private final NotificationBus bus;
@@ -160,7 +162,12 @@ public final class McpHttpServer {
 	private void handlePost(HttpExchange ex) throws IOException {
 		String body;
 		try (InputStream in = ex.getRequestBody()) {
-			body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
+			byte[] bytes = in.readNBytes(MAX_BODY_BYTES + 1);
+			if (bytes.length > MAX_BODY_BYTES) {
+				respond(ex, 413, "application/json", "{\"error\":\"request body larger than 1 MiB\"}");
+				return;
+			}
+			body = new String(bytes, StandardCharsets.UTF_8);
 		}
 		if (body.isBlank()) {
 			respondJsonRpc(ex, JsonRpc.error(JsonNull.INSTANCE, JsonRpc.PARSE_ERROR, "empty body"));

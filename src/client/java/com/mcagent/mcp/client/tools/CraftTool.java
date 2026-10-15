@@ -9,6 +9,7 @@ import com.mcagent.mcp.client.inventory.Recipes;
 import com.mcagent.mcp.tools.Args;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
+import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.inventory.AbstractCraftingMenu;
 import net.minecraft.world.inventory.InventoryMenu;
@@ -29,6 +30,11 @@ public final class CraftTool implements McpTool {
 	@Override
 	public String name() {
 		return "craft";
+	}
+
+	@Override
+	public ToolCategory category() {
+		return ToolCategory.INVENTORY;
 	}
 
 	@Override
