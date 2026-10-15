@@ -19,6 +19,8 @@ public class ProtocolTest {
 	static int failures = 0;
 
 	public static void main(String[] args) throws Exception {
+		// "Origin" is a restricted header for HttpURLConnection unless this is set first.
+		System.setProperty("sun.net.http.allowRestrictedHeaders", "true");
 		ToolRegistry reg = new ToolRegistry();
 		reg.register(new PingTool());
 		reg.register(new McpTool() {
@@ -27,7 +29,7 @@ public class ProtocolTest {
 			@Override public JsonObject inputSchema() { return new JsonObject(); }
 			@Override public JsonObject call(JsonObject args) { throw new ToolException("intentional failure"); }
 		});
-		McpProtocol protocol = new McpProtocol(reg, "mc-agent-mcp", "0.1.0-test");
+		McpProtocol protocol = new McpProtocol(reg, "mc-agent-mcp", "0.1.0-test", "test playbook");
 		NotificationBus bus = new NotificationBus();
 		McpHttpServer server = new McpHttpServer(protocol, bus, "127.0.0.1", 27994, TOKEN);
 		server.start();
@@ -37,6 +39,7 @@ public class ProtocolTest {
 				+ "{\"protocolVersion\":\"2025-06-18\",\"capabilities\":{},\"clientInfo\":{\"name\":\"t\",\"version\":\"0\"}}}", null);
 		check("initialize -> 200", init.code == 200);
 		check("initialize returns serverInfo", init.body.contains("mc-agent-mcp"));
+		check("initialize returns instructions", init.body.contains("\"instructions\":\"test playbook\""));
 		String session = init.session;
 		check("initialize returns Mcp-Session-Id", session != null && !session.isBlank());
 		check("initialize negotiates protocolVersion", init.body.contains("2025-06-18"));
@@ -78,6 +81,16 @@ public class ProtocolTest {
 		// auth
 		Resp noAuth = post("{\"jsonrpc\":\"2.0\",\"id\":7,\"method\":\"ping\"}", session, null, true);
 		check("missing token -> 401", noAuth.code == 401);
+
+		// Origin validation (DNS-rebinding protection)
+		Resp evil = send("POST", "{\"jsonrpc\":\"2.0\",\"id\":10,\"method\":\"ping\"}", session, TOKEN,
+				"http://evil.example.com");
+		check("foreign Origin -> 403", evil.code == 403);
+		Resp nullOrigin = send("POST", "{\"jsonrpc\":\"2.0\",\"id\":11,\"method\":\"ping\"}", session, TOKEN, "null");
+		check("opaque 'null' Origin -> 403", nullOrigin.code == 403);
+		Resp localOrigin = send("POST", "{\"jsonrpc\":\"2.0\",\"id\":12,\"method\":\"ping\"}", session, TOKEN,
+				"http://localhost:6274");
+		check("loopback Origin -> 200", localOrigin.code == 200);
 
 		// batch: notifications only -> 202
 		Resp batch = post("[{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"},"
@@ -129,8 +142,13 @@ public class ProtocolTest {
 	}
 
 	static Resp send(String method, String body, String session, String token) throws Exception {
+		return send(method, body, session, token, null);
+	}
+
+	static Resp send(String method, String body, String session, String token, String origin) throws Exception {
 		HttpURLConnection c = (HttpURLConnection) new URL(BASE).openConnection();
 		c.setRequestMethod(method);
+		if (origin != null) c.setRequestProperty("Origin", origin);
 		if (token != null) c.setRequestProperty("Authorization", "Bearer " + token);
 		c.setRequestProperty("Content-Type", "application/json");
 		if (session != null) c.setRequestProperty("Mcp-Session-Id", session);

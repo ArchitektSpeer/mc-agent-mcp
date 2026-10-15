@@ -31,6 +31,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  *  - GET (standalone SSE stream) pushes server-initiated notifications
  *    (block-diff events); DELETE terminates the session and closes those streams
  *  - Bearer-token auth on every request; loopback bind only by default
+ *  - Origin validation: browser requests from non-loopback origins are rejected (403),
+ *    as the spec requires, to block DNS-rebinding attacks against the local server
  */
 public final class McpHttpServer {
 	private static final Logger LOGGER = LoggerFactory.getLogger("mc-agent-mcp");
@@ -92,6 +94,10 @@ public final class McpHttpServer {
 		// in that case the exchange must stay open, so the finally block skips close().
 		boolean sseOwned = false;
 		try {
+			if (!originAllowed(ex.getRequestHeaders().getFirst("Origin"))) {
+				respond(ex, 403, "application/json", "{\"error\":\"forbidden origin\"}");
+				return;
+			}
 			if (!authorized(ex)) {
 				respond(ex, 401, "application/json",
 						"{\"error\":\"unauthorized: send header 'Authorization: Bearer <token>'\"}");
@@ -126,6 +132,21 @@ public final class McpHttpServer {
 			if (!sseOwned) {
 				ex.close();
 			}
+		}
+	}
+
+	/**
+	 * Non-browser MCP clients send no Origin; browsers always do. Only loopback origins may
+	 * talk to the server, so a web page cannot reach it through DNS rebinding.
+	 */
+	static boolean originAllowed(String origin) {
+		if (origin == null) return true;
+		try {
+			String host = java.net.URI.create(origin.trim()).getHost();
+			if (host == null) return false;
+			return host.equals("localhost") || host.equals("127.0.0.1") || host.equals("[::1]") || host.equals("::1");
+		} catch (IllegalArgumentException e) {
+			return false;
 		}
 	}
 

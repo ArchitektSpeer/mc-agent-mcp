@@ -4,7 +4,9 @@
 	"package": "com.mcagent.mcp.client.mixin",
 	"compatibilityLevel": "JAVA_21",
 	"client": [
-		"ClientLevelMixin"
+		"ClientLevelMixin",
+		"KeyboardInputMixin",
+		"MinecraftMixin"
 	],
 	"injectors": {
 		"defaultRequire": 1

@@ -17,11 +17,21 @@ public final class McpProtocol {
 	private final ToolRegistry registry;
 	private final String serverName;
 	private final String serverVersion;
+	private final String instructions;
 
 	public McpProtocol(ToolRegistry registry, String serverName, String serverVersion) {
+		this(registry, serverName, serverVersion, null);
+	}
+
+	/**
+	 * @param instructions optional usage guide returned by initialize; MCP clients typically add
+	 *                     it to the model's system prompt
+	 */
+	public McpProtocol(ToolRegistry registry, String serverName, String serverVersion, String instructions) {
 		this.registry = registry;
 		this.serverName = serverName;
 		this.serverVersion = serverVersion;
+		this.instructions = instructions;
 	}
 
 	/**
@@ -72,6 +82,9 @@ public final class McpProtocol {
 		result.addProperty("protocolVersion", PROTOCOL_VERSION);
 		result.add("capabilities", caps);
 		result.add("serverInfo", info);
+		if (instructions != null) {
+			result.addProperty("instructions", instructions);
+		}
 		return result;
 	}
 

@@ -27,6 +27,10 @@ public final class McAgentConfig {
 	public int port = 27890;
 	public String bindAddress = "127.0.0.1";
 	public String authToken = "";
+	/** Let the agent run /commands through the chat tool (off: an agent could e.g. /op or /kill). */
+	public boolean allowCommands = false;
+	/** Keep the game running while the window is unfocused, so the agent can play in the background. */
+	public boolean disablePauseOnLostFocus = true;
 
 	private McAgentConfig() {
 	}
@@ -41,6 +45,10 @@ public final class McAgentConfig {
 				if (o.has("port")) cfg.port = o.get("port").getAsInt();
 				if (o.has("bindAddress")) cfg.bindAddress = o.get("bindAddress").getAsString();
 				if (o.has("authToken")) cfg.authToken = o.get("authToken").getAsString();
+				if (o.has("allowCommands")) cfg.allowCommands = o.get("allowCommands").getAsBoolean();
+				if (o.has("disablePauseOnLostFocus")) {
+					cfg.disablePauseOnLostFocus = o.get("disablePauseOnLostFocus").getAsBoolean();
+				}
 			} catch (Exception e) {
 				McAgentMod.LOGGER.warn("Failed to read config {}, using defaults", file, e);
 			}
@@ -62,6 +70,8 @@ public final class McAgentConfig {
 			o.addProperty("port", port);
 			o.addProperty("bindAddress", bindAddress);
 			o.addProperty("authToken", authToken);
+			o.addProperty("allowCommands", allowCommands);
+			o.addProperty("disablePauseOnLostFocus", disablePauseOnLostFocus);
 			try (Writer w = Files.newBufferedWriter(file)) {
 				GSON.toJson(o, w);
 			}
