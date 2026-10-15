@@ -163,7 +163,7 @@ call '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_blocks
 | `go_to` | movement 移动 | 走到某个位置或实体：疾跑、自动跳台阶，遇到岩浆/悬崖或受伤时停下 |
 | `look` | movement 移动 | 设置 yaw/pitch，或看向某个方块或实体 |
 | `break_block` | interaction 交互 | 挖掉一个方块 |
-| `place_block` | interaction 交互 | 把手持方块放进空格子（自动选择依附面） |
+| `place_block` | interaction 交互 | 把手持方块放进空格子（自动选择依附面）；目标是自己脚下的格子时会跳起垫高；放不下时说明原因 |
 | `interact_block` | interaction 交互 | 右键方块：门、箱子、工作台、床、按钮 |
 | `attack_entity` / `interact_entity` | interaction 交互 | 左键 / 右键实体 |
 | `use_item` | interaction 交互 | 对空气右键；`ticks` 表示按住（进食、喝药、拉弓、举盾） |

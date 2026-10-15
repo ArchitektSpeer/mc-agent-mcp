@@ -179,9 +179,9 @@ public final class AgentControl {
 
 	// ---- menu scripts (crafting) -------------------------------------------------------
 
-	/** Run a menu script (e.g. crafting) one step per tick; replaces any running one. */
+	/** Run a multi-tick script (crafting, pillaring) one step per tick; replaces any running one. */
 	public CompletableFuture<JsonObject> startMenuTask(TickTask task) {
-		cancelMenuTask("interrupted by a new crafting request");
+		cancelMenuTask("interrupted by a newer task");
 		menuTask = task;
 		menuDone = new CompletableFuture<>();
 		return menuDone;
