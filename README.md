@@ -6,6 +6,9 @@ A **Minecraft Fabric mod** that runs a **Model Context Protocol (MCP) server** i
 client, so an AI agent (Claude, DeepSeek, or any MCP client) can see the world and play
 survival on its own: walk, mine, build, fight, eat, craft, smelt, use chests and chat.
 
+**Demo video** (Chinese, 4 min, [download](https://github.com/ArchitektSpeer/mc-agent-mcp/releases/download/v0.2.1/mc-agent-mcp-demo-zh.mp4)): DeepSeek V4 Flash goes from an empty
+inventory to a stone sword, builds a shelter before night, and fights mobs with survival reflexes.
+
 | | |
 |---|---|
 | Game | Minecraft `1.21.11` (Java 21) |
@@ -35,7 +38,8 @@ survival on its own: walk, mine, build, fight, eat, craft, smelt, use chests and
 
 1. Install [Fabric Loader](https://fabricmc.net/use/) for 1.21.11 and
    [Fabric API](https://modrinth.com/mod/fabric-api).
-2. Build the mod and drop the jar into `.minecraft/mods/`:
+2. Download `mc-agent-mcp-<version>.jar` from [Releases](https://github.com/ArchitektSpeer/mc-agent-mcp/releases/latest) (or build it) and drop it into
+   `.minecraft/mods/`:
    ```bash
    ./gradlew build        # -> build/libs/mc-agent-mcp-<version>.jar
    ```
@@ -387,7 +391,7 @@ tool has been exercised this way in survival.
   threats/events in `observe`, example DeepSeek agent
 - **M9** ✅ DeepSeek Harness plugin; `layers` labelled with `layerY`; `go_to` stops next to solid
   targets and names what blocks it
-- **Next**: demo video; optional `pathfind_to` via Baritone (LGPL, kept as an
+- **Next**: optional `pathfind_to` via Baritone (LGPL, kept as an
   external dependency)
 
 ## License

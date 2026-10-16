@@ -6,6 +6,9 @@
 让 AI 智能体（Claude、DeepSeek 或任何 MCP 客户端）能看到世界并自己玩生存模式：走路、挖矿、
 建造、战斗、进食、合成、熔炼、使用箱子和聊天。
 
+**演示视频**（中文，4 分钟，[下载](https://github.com/ArchitektSpeer/mc-agent-mcp/releases/download/v0.2.1/mc-agent-mcp-demo-zh.mp4)）：DeepSeek V4 Flash 从空背包做到石剑、天黑前自己搭掩体、
+靠生存反射对付怪物。
+
 | | |
 |---|---|
 | 游戏 | Minecraft `1.21.11`（Java 21） |
@@ -30,7 +33,7 @@
 
 1. 安装 1.21.11 的 [Fabric Loader](https://fabricmc.net/use/) 和
    [Fabric API](https://modrinth.com/mod/fabric-api)。
-2. 构建模组，把 jar 放进 `.minecraft/mods/`：
+2. 从 [Releases](https://github.com/ArchitektSpeer/mc-agent-mcp/releases/latest) 下载 `mc-agent-mcp-<version>.jar`（或自己构建），放进 `.minecraft/mods/`：
    ```bash
    ./gradlew build        # -> build/libs/mc-agent-mcp-<version>.jar
    ```
@@ -363,7 +366,7 @@ java -jar minecraft-server.jar --nogui     # 控制台可用 /give、/setblock�
 - **M8** ✅ 让快速/低成本模型也能玩：生存反射、受伤中断、`go_to`、`batch`、`observe` 中的威胁和事件、
   DeepSeek 示例智能体
 - **M9** ✅ DeepSeek Harness 插件；`layers` 增加 `layerY` 标注；`go_to` 在实心目标旁停下并指出挡路的方块
-- **下一步**：演示视频；可选的 `pathfind_to`（通过 Baritone，LGPL，仅作为外部依赖）
+- **下一步**：可选的 `pathfind_to`（通过 Baritone，LGPL，仅作为外部依赖）
 
 ## 许可证
 
