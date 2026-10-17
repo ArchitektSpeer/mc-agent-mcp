@@ -21,6 +21,7 @@ import com.mcagent.mcp.client.tools.GetBlockChangesTool;
 import com.mcagent.mcp.client.tools.GetChatTool;
 import com.mcagent.mcp.client.tools.GetEntitiesTool;
 import com.mcagent.mcp.client.tools.GetInventoryTool;
+import com.mcagent.mcp.client.tools.InspectBlockTool;
 import com.mcagent.mcp.client.tools.LookTool;
 import com.mcagent.mcp.client.tools.MoveTool;
 import com.mcagent.mcp.client.tools.PlaceBlockTool;
@@ -62,6 +63,7 @@ public class ToolSchemaTest {
 		tools.add(new ObserveTool(null, null));
 		tools.add(new GetBlocksTool(null, scanner));
 		tools.add(new ScanBlocksTool(null, scanner));
+		tools.add(new InspectBlockTool(null));
 		tools.add(new SubscribeBlocksTool(null, tracker));
 		tools.add(new GetBlockChangesTool(null, tracker));
 		AgentControl control = new AgentControl();

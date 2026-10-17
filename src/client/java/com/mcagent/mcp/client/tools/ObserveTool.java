@@ -86,7 +86,7 @@ public final class ObserveTool implements McpTool {
 			o.addProperty("maxHealth", p.getMaxHealth());
 			o.addProperty("food", p.getFoodData().getFoodLevel());
 			o.addProperty("saturation", p.getFoodData().getSaturationLevel());
-			o.addProperty("dimension", mc.level.dimension().identifier().toString());
+			o.addProperty("dimension", mc.level.dimension().location().toString());
 			o.addProperty("gameTime", mc.level.getGameTime());
 			// Everything below is what an agent needs to decide its next action in one call.
 			o.addProperty("dead", p.isDeadOrDying());
@@ -97,7 +97,7 @@ public final class ObserveTool implements McpTool {
 			o.addProperty("xpLevel", p.experienceLevel);
 			o.addProperty("timeOfDay", mc.level.getDayTime() % 24000L);
 			o.addProperty("raining", mc.level.isRaining());
-			o.addProperty("selectedSlot", p.getInventory().getSelectedSlot());
+			o.addProperty("selectedSlot", p.getInventory().selected);
 			JsonObject held = Json.item(p.getMainHandItem());
 			if (held != null) o.add("mainHand", held);
 			o.addProperty("attackStrength", Json.round2(p.getAttackStrengthScale(0.5F)));

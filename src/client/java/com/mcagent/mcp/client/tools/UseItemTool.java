@@ -60,9 +60,9 @@ public final class UseItemTool implements McpTool {
 			bridge.callOnGameThread(() -> {
 				LocalPlayer p = GameBridge.requirePlayer();
 				InteractionResult r = Minecraft.getInstance().gameMode.useItem(p, hand);
-				if (r instanceof InteractionResult.Success) p.swing(hand);
+				if (r.shouldSwing()) p.swing(hand);
 				o.addProperty("success", r.consumesAction());
-				o.addProperty("result", r.getClass().getSimpleName());
+				o.addProperty("result", r.name());
 				return null;
 			});
 		} else {

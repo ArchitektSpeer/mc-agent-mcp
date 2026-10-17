@@ -15,6 +15,7 @@ import com.mcagent.mcp.client.tools.CraftTool;
 import com.mcagent.mcp.client.tools.GetContainerTool;
 import com.mcagent.mcp.client.tools.GetRecipesTool;
 import com.mcagent.mcp.client.tools.GoToTool;
+import com.mcagent.mcp.client.tools.InspectBlockTool;
 import com.mcagent.mcp.client.tools.SetReflexesTool;
 import com.mcagent.mcp.client.tools.TransferItemsTool;
 import com.mcagent.mcp.client.tools.GetBlockChangesTool;
@@ -40,15 +41,17 @@ import com.mcagent.mcp.tools.BatchTool;
 import com.mcagent.mcp.tools.PingTool;
 import com.mcagent.mcp.tools.ToolPolicy;
 import com.mcagent.mcp.tools.ToolRegistry;
-import net.fabricmc.api.ClientModInitializer;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
-import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
-import net.fabricmc.fabric.api.client.message.v1.ClientReceiveMessageEvents;
-import net.fabricmc.loader.api.FabricLoader;
-import net.fabricmc.loader.api.ModContainer;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.level.block.Block;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.neoforge.client.event.ClientChatReceivedEvent;
+import net.neoforged.neoforge.client.event.ClientTickEvent;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.GameShuttingDownEvent;
+import net.neoforged.neoforge.event.level.ChunkEvent;
 
 /**
  * Client entrypoint: wires config, tool registry, protocol and HTTP transport,
@@ -59,7 +62,8 @@ import net.minecraft.world.level.block.Block;
  * M4/M5 add: entity/inventory/chat perception and player actuation ({@link AgentControl}).
  * M6 adds: container menus and recipe-book crafting.
  */
-public class McAgentClient implements ClientModInitializer {
+@Mod(value = McAgentMod.MOD_ID, dist = Dist.CLIENT)
+public class McAgentClient {
 	/** Playbook sent in the initialize result, so any MCP client knows how to drive the game. */
 	static final String INSTRUCTIONS = """
 			You control a Minecraft survival player. 20 ticks = 1 second. Your turns are slow, so the mod runs
@@ -89,19 +93,14 @@ public class McAgentClient implements ClientModInitializer {
 
 	private static McpHttpServer server;
 
-	@Override
-	public void onInitializeClient() {
+	public McAgentClient(ModContainer container) {
 		McAgentConfig config = McAgentConfig.load();
 		if (!config.enabled) {
 			McAgentMod.LOGGER.info("[mcagent] disabled via config/mcagent.json");
 			return;
 		}
 
-		String version = FabricLoader.getInstance()
-				.getModContainer(McAgentMod.MOD_ID)
-				.map(ModContainer::getMetadata)
-				.map(m -> m.getVersion().getFriendlyString())
-				.orElse("dev");
+		String version = container.getModInfo().getVersion().toString();
 
 		GameBridge bridge = new GameBridge();
 		BlockScanner scanner = new BlockScanner();
@@ -120,6 +119,7 @@ public class McAgentClient implements ClientModInitializer {
 		registry.register(new ObserveTool(bridge, events));
 		registry.register(new GetBlocksTool(bridge, scanner));
 		registry.register(new ScanBlocksTool(bridge, scanner));
+		registry.register(new InspectBlockTool(bridge));
 		registry.register(new SubscribeBlocksTool(bridge, tracker));
 		registry.register(new GetBlockChangesTool(bridge, tracker));
 		// M4 perception
@@ -162,7 +162,13 @@ public class McAgentClient implements ClientModInitializer {
 		}
 
 		// Track world changes each client tick; push diffs to SSE subscribers.
-		ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+		NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> {
+			Minecraft mc = Minecraft.getInstance();
+			if (config.disablePauseOnLostFocus && mc.options.pauseOnLostFocus) {
+				// An agent drives the game while the user works in another window; vanilla would
+				// pause on focus loss and open the pause menu, freezing every timed action.
+				mc.options.pauseOnLostFocus = false;
+			}
 			control.tick(mc);
 			reflexes.tick(mc);
 			tracker.tick();
@@ -179,24 +185,27 @@ public class McAgentClient implements ClientModInitializer {
 		});
 		// Chunk (un)load invalidates cached snapshots: re-baseline without emitting a diff,
 		// so loading terrain never shows up as thousands of "appeared" blocks.
-		ClientChunkEvents.CHUNK_LOAD.register((level, chunk) ->
-				tracker.onChunkLoaded(chunk.getPos().x, chunk.getPos().z));
-		ClientChunkEvents.CHUNK_UNLOAD.register((level, chunk) ->
-				tracker.onChunkUnloaded(chunk.getPos().x, chunk.getPos().z));
-
-		ClientReceiveMessageEvents.CHAT.register((message, signed, sender, params, receivedAt) ->
-				chatLog.add("chat", sender == null ? null : sender.name(), message.getString()));
-		ClientReceiveMessageEvents.GAME.register((message, overlay) -> {
-			if (!overlay) chatLog.add("game", null, message.getString()); // skip action-bar spam
+		NeoForge.EVENT_BUS.addListener((ChunkEvent.Load event) -> {
+			if (event.getLevel().isClientSide()) {
+				tracker.onChunkLoaded(event.getChunk().getPos().x, event.getChunk().getPos().z);
+			}
+		});
+		NeoForge.EVENT_BUS.addListener((ChunkEvent.Unload event) -> {
+			if (event.getLevel().isClientSide()) {
+				tracker.onChunkUnloaded(event.getChunk().getPos().x, event.getChunk().getPos().z);
+			}
 		});
 
-		if (config.disablePauseOnLostFocus) {
-			// An agent drives the game while the user works in another window; vanilla would
-			// pause on focus loss and open the pause menu, freezing every timed action.
-			ClientLifecycleEvents.CLIENT_STARTED.register(mc -> mc.options.pauseOnLostFocus = false);
-		}
+		NeoForge.EVENT_BUS.addListener((ClientChatReceivedEvent event) -> {
+			if (event instanceof ClientChatReceivedEvent.System system) {
+				if (!system.isOverlay()) chatLog.add("game", null, event.getMessage().getString()); // skip action-bar spam
+			} else {
+				var bound = event.getBoundChatType();
+				chatLog.add("chat", bound == null ? null : bound.name().getString(), event.getMessage().getString());
+			}
+		});
 
-		ClientLifecycleEvents.CLIENT_STOPPING.register(mc -> {
+		NeoForge.EVENT_BUS.addListener((GameShuttingDownEvent event) -> {
 			if (server != null) {
 				server.stop();
 				server = null;

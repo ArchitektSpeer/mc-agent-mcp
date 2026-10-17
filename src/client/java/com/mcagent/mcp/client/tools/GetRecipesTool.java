@@ -9,7 +9,7 @@ import com.mcagent.mcp.tools.Args;
 import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
 import com.mcagent.mcp.tools.ToolCategory;
-import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
+import net.minecraft.world.item.crafting.RecipeHolder;
 
 /** get_recipes: unlocked recipes from the recipe book, with ingredients and craftability. */
 public final class GetRecipesTool implements McpTool {
@@ -56,7 +56,7 @@ public final class GetRecipesTool implements McpTool {
 			Recipes recipes = new Recipes(GameBridge.requirePlayer());
 			JsonArray out = new JsonArray();
 			int matched = 0;
-			for (RecipeDisplayEntry e : recipes.all()) {
+			for (RecipeHolder<?> e : recipes.all()) {
 				if (itemId != null && !itemId.equals(recipes.resultId(e))) continue;
 				if (craftableOnly && !recipes.canCraft(e)) continue;
 				matched++;

@@ -8,7 +8,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.mcagent.mcp.tools.ToolCategory;
 import com.mcagent.mcp.tools.ToolPolicy;
-import net.fabricmc.loader.api.FabricLoader;
+import net.neoforged.fml.loading.FMLPaths;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,7 +32,7 @@ import java.util.Map;
  */
 public final class McAgentConfig {
 	private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-	// Not LOGGER: loading McAgentMod needs Fabric on the classpath, which the offline checks avoid.
+	// Not LOGGER: loading McAgentMod needs the mod loader on the classpath, which the offline checks avoid.
 	private static final Logger LOGGER = LoggerFactory.getLogger("mc-agent-mcp");
 
 	/** Rate limit for one bucket; {@code perSecond <= 0} means unlimited. */
@@ -70,7 +70,7 @@ public final class McAgentConfig {
 	}
 
 	public static McAgentConfig load() {
-		Path file = FabricLoader.getInstance().getConfigDir().resolve("mcagent.json");
+		Path file = FMLPaths.CONFIGDIR.get().resolve("mcagent.json");
 		McAgentConfig cfg = new McAgentConfig();
 		if (Files.isRegularFile(file)) {
 			try (Reader r = Files.newBufferedReader(file)) {

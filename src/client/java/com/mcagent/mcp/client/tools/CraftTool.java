@@ -11,9 +11,8 @@ import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
 import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.inventory.AbstractCraftingMenu;
 import net.minecraft.world.inventory.InventoryMenu;
-import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
+import net.minecraft.world.item.crafting.RecipeHolder;
 
 import java.util.concurrent.CompletableFuture;
 
@@ -61,7 +60,7 @@ public final class CraftTool implements McpTool {
 
 		CompletableFuture<JsonObject> done = bridge.callOnGameThread(() -> {
 			LocalPlayer p = GameBridge.requirePlayer();
-			if (!(p.containerMenu instanceof AbstractCraftingMenu)) {
+			if (!Recipes.isCraftingGrid(p.containerMenu)) {
 				throw new ToolException("the open screen is not a crafting grid; close it (stop closeScreen=true) "
 						+ "or open a crafting table");
 			}
@@ -69,12 +68,12 @@ public final class CraftTool implements McpTool {
 				throw new ToolException("an item is on the cursor; put it down with click_slot first");
 			}
 			Recipes recipes = new Recipes(p);
-			RecipeDisplayEntry best = null;
+			RecipeHolder<?> best = null;
 			boolean known = false, tooBig = false;
-			for (RecipeDisplayEntry e : recipes.all()) {
-				if (!Recipes.isCrafting(e.display()) || !itemId.equals(recipes.resultId(e))) continue;
+			for (RecipeHolder<?> e : recipes.all()) {
+				if (!Recipes.isCrafting(e) || !itemId.equals(recipes.resultId(e))) continue;
 				known = true;
-				if (!Recipes.fits(e.display(), p.containerMenu)) {
+				if (!Recipes.fits(e, p.containerMenu)) {
 					tooBig = true;
 					continue;
 				}

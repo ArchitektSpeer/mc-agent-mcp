@@ -2,7 +2,10 @@
 
 **English** | [简体中文](README.zh-CN.md)
 
-A **Minecraft Fabric mod** that runs a **Model Context Protocol (MCP) server** inside the game
+> **This branch is the NeoForge 1.21.1 port.** The Fabric 1.21.11 version lives on `main`.
+> The port also adds `inspect_block` and `get_inventory detail=true` (see [Tools](#tools)).
+
+A **Minecraft NeoForge mod** that runs a **Model Context Protocol (MCP) server** inside the game
 client, so an AI agent (Claude, DeepSeek, or any MCP client) can see the world and play
 survival on its own: walk, mine, build, fight, eat, craft, smelt, use chests and chat.
 
@@ -11,15 +14,15 @@ inventory to a stone sword, builds a shelter before night, and fights mobs with 
 
 | | |
 |---|---|
-| Game | Minecraft `1.21.11` (Java 21) |
-| Loader | Fabric Loader `0.19.5` + Fabric API `0.141.6` |
+| Game | Minecraft `1.21.1` (Java 21) |
+| Loader | NeoForge `21.1.262` |
 | Transport | MCP *Streamable HTTP* at `http://127.0.0.1:27890/mcp`, Bearer token |
 | Protocol | MCP `2025-06-18` (tools, server instructions, SSE notifications) |
 | Side | client-only: it drives *your* player, in singleplayer or on a server |
 
 ## Features
 
-- **29 tools** covering perception, movement, interaction, inventory, crafting and chat
+- **30 tools** covering perception, movement, interaction, inventory, crafting and chat
   ([reference](#tools)).
 - **Survival reflexes for slow models**: the mod defends, evades creepers, eats, equips armor
   and swims up every tick (50 ms), so an agent that needs seconds per turn is not killed while
@@ -36,12 +39,10 @@ inventory to a stone sword, builds a shelter before night, and fights mobs with 
 
 ## Quick start
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for 1.21.11 and
-   [Fabric API](https://modrinth.com/mod/fabric-api).
-2. Download `mc-agent-mcp-<version>.jar` from [Releases](https://github.com/ArchitektSpeer/mc-agent-mcp/releases/latest) (or build it) and drop it into
-   `.minecraft/mods/`:
+1. Install [NeoForge](https://neoforged.net/) `21.1.262` (or newer 21.1.x) for Minecraft 1.21.1.
+2. Build the jar (JDK 21; Gradle runs on it too) and drop it into `.minecraft/mods/`:
    ```bash
-   ./gradlew build        # -> build/libs/mc-agent-mcp-<version>.jar
+   ./gradlew build        # -> build/libs/mc-agent-mcp-<version>-neoforge.jar
    ```
 3. Start the game once. The mod writes `config/mcagent.json` with a random `authToken` and logs
    the endpoint.
@@ -170,7 +171,8 @@ perception, `destructiveHint` for interaction and inventory).
 | `scan_blocks` | perception | find specific blocks (ores…) within a radius |
 | `subscribe_blocks` / `get_block_changes` | perception | track block changes around the player (SSE push or polling) |
 | `get_entities` | perception | nearby mobs/players/items, nearest first, with ids, health, `hostile` |
-| `get_inventory` | perception | non-empty slots (0-8 hotbar, 9-35 main, 36-39 armor, 40 offhand) |
+| `get_inventory` | perception | non-empty slots (0-8 hotbar, 9-35 main, 36-39 armor, 40 offhand); `detail=true` adds each item's name, tooltip lines and non-default data components |
+| `inspect_block` | perception | one block in full: id, every block state property, client-side block entity data |
 | `get_chat` | perception | received chat/system messages, incremental via `afterSeq` |
 | `get_container` | perception | open menu (chest, furnace, crafting table, own inventory) by slot and section |
 | `get_recipes` | perception | unlocked recipes: ingredients, station, craftable right now |
@@ -302,7 +304,7 @@ same kind replaces the running one; `stop` cancels everything.
 ## Design notes
 
 - **Threads**: HTTP workers only validate and route. All world access runs on the client thread
-  (`GameBridge`); multi-tick actions are driven from `END_CLIENT_TICK` and the HTTP thread waits on
+  (`GameBridge`); multi-tick actions are driven from `ClientTickEvent.Post` and the HTTP thread waits on
   a future. SSE streams get their own threads.
 - **Scanning** walks `LevelChunkSection`s directly and skips empty sections instead of calling
   `getBlockState` per cell.
@@ -358,7 +360,7 @@ checks/                       offline test suite
 | `InventoryMathTest` | transfer stack selection, 2x2 vs 3x3 grid fit, item id normalisation |
 | `PolicyTest` | token bucket timing (fake clock), permissions, control exemption, config parse/round-trip, reflex settings |
 | `ReflexMathTest` | weapon DPS ranking, food choice (gap filling, unsafe/precious food), armor tiers |
-| `ToolSchemaTest` | all 29 tools: unique names, category set, well-formed JSON Schema |
+| `ToolSchemaTest` | all 30 tools: unique names, category set, well-formed JSON Schema |
 
 ### In-game testing
 
@@ -366,19 +368,20 @@ The offline suite cannot cover mixins at runtime or real gameplay. Run a local o
 server and the dev client:
 
 ```bash
-# 1. server (Loom has already cached the jar), flat world, peaceful
-mkdir -p /tmp/mcsrv && cd /tmp/mcsrv
-cp <repo>/.gradle-home/caches/fabric-loom/1.21.11/minecraft-server.jar .   # or ~/.gradle/caches/...
-echo eula=true > eula.txt
-printf 'online-mode=false\nserver-port=25599\nlevel-type=minecraft\\:flat\ndifficulty=peaceful\nspawn-protection=0\n' > server.properties
-java -jar minecraft-server.jar --nogui     # console: /give, /setblock, /summon to stage scenarios
-
-# 2. dev client (set onboardAccessibility:false in run/options.txt first, or quick play stalls)
-./gradlew runClient --args="--quickPlayMultiplayer 127.0.0.1:25599"
+./gradlew runClient
 ```
 
-Then call tools as in the curl smoke test, using the token in `run/config/mcagent.json`. Every
-tool has been exercised this way in survival.
+or put the jar into the `run/mods/` folder of another mod's NeoForge dev workspace and start its
+dev client, to drive that mod. ModDevGradle has no `--args`; to join a world straight away, add
+`--quickPlaySingleplayer <world>` (or `--quickPlayMultiplayer host:port`) to the client run's
+`programArguments`. Set `"allowCommands": true` in `run/config/mcagent.json` to stage scenarios
+with `/give`, `/setblock` and `/fill`.
+
+Then call tools as in the curl smoke test, using the token in `run/config/mcagent.json`. On the
+Fabric build every tool has been exercised this way in survival. On this NeoForge port the offline
+checks pass and `observe`, `chat` (commands), `get_chat`, `get_inventory` (with `detail`),
+`inspect_block`, `select_slot`, `use_item`, `interact_block`, `break_block`, `go_to` and
+`get_entities` were run in-game; the rest compile against 1.21.1 but are not yet tested live.
 
 ## Roadmap
 
@@ -396,5 +399,5 @@ tool has been exercised this way in survival.
 
 ## License
 
-MIT. Fabric Loader/Loom are Apache-2.0, the MCP specification and SDKs are MIT. Baritone (LGPL)
+MIT. NeoForge is LGPL-2.1 (a runtime dependency only), the MCP specification and SDKs are MIT. Baritone (LGPL)
 would only ever be an optional external dependency.

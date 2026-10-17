@@ -5,9 +5,9 @@ import com.mcagent.mcp.client.control.AgentControl;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.inventory.AbstractContainerMenu;
-import net.minecraft.world.inventory.AbstractCraftingMenu;
+import net.minecraft.world.inventory.RecipeBookMenu;
 import net.minecraft.world.inventory.ClickType;
-import net.minecraft.world.item.crafting.display.RecipeDisplayEntry;
+import net.minecraft.world.item.crafting.RecipeHolder;
 
 /**
  * Crafts with the recipe book, one craft per round, until enough items were made:
@@ -21,7 +21,7 @@ public final class CraftTask implements AgentControl.TickTask {
 
 	private enum Phase { PLACE, AWAIT_RESULT, AWAIT_TAKE }
 
-	private final RecipeDisplayEntry recipe;
+	private final RecipeHolder<?> recipe;
 	private final String itemId;
 	private final int wanted;
 	private final int containerId;
@@ -30,7 +30,7 @@ public final class CraftTask implements AgentControl.TickTask {
 	private int waited;
 	private int rounds;
 
-	public CraftTask(LocalPlayer player, RecipeDisplayEntry recipe, String itemId, int wanted) {
+	public CraftTask(LocalPlayer player, RecipeHolder<?> recipe, String itemId, int wanted) {
 		this.recipe = recipe;
 		this.itemId = itemId;
 		this.wanted = wanted;
@@ -42,16 +42,16 @@ public final class CraftTask implements AgentControl.TickTask {
 	public JsonObject tick(Minecraft mc) {
 		LocalPlayer p = mc.player;
 		AbstractContainerMenu menu = p.containerMenu;
-		if (menu.containerId != containerId || !(menu instanceof AbstractCraftingMenu cm)) {
+		if (menu.containerId != containerId || !Recipes.isCraftingGrid(menu) || !(menu instanceof RecipeBookMenu<?, ?> cm)) {
 			return result(p, "crafting menu was closed");
 		}
-		int resultSlot = cm.getResultSlot().index;
+		int resultSlot = cm.getResultSlotIndex();
 		switch (phase) {
 			case PLACE -> {
 				if (gained(p) >= wanted) return result(p, null);
 				if (rounds >= MAX_ROUNDS) return result(p, "stopped after " + MAX_ROUNDS + " crafts");
 				if (!new Recipes(p).canCraft(recipe)) return result(p, "ran out of ingredients");
-				mc.gameMode.handlePlaceRecipe(containerId, recipe.id(), false);
+				mc.gameMode.handlePlaceRecipe(containerId, recipe, false);
 				rounds++;
 				waited = 0;
 				phase = Phase.AWAIT_RESULT;

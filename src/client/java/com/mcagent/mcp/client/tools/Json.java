@@ -2,11 +2,17 @@ package com.mcagent.mcp.client.tools;
 
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import java.util.List;
 import com.mcagent.mcp.client.reflex.Reflexes;
+import com.mojang.serialization.JsonOps;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.component.DataComponentPatch;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.phys.Vec3;
 
 /** Shared JSON shapes for the perception/actuation tools. */
@@ -44,6 +50,26 @@ final class Json {
 		if (s.getMaxDamage() > 0) {
 			o.addProperty("damage", s.getDamageValue());
 			o.addProperty("maxDamage", s.getMaxDamage());
+		}
+		return o;
+	}
+
+	/**
+	 * {@link #item} plus everything a mod tester needs: the display name, the tooltip lines as the
+	 * player would see them, and the non-default data components (e.g. a seed's genome).
+	 */
+	static JsonObject itemDetail(ItemStack s, LocalPlayer p) {
+		JsonObject o = item(s);
+		if (o == null) return null;
+		o.addProperty("name", s.getHoverName().getString());
+		List<Component> lines = s.getTooltipLines(Item.TooltipContext.of(p.level()), p, TooltipFlag.Default.NORMAL);
+		JsonArray tooltip = new JsonArray();
+		for (int i = 1; i < lines.size(); i++) tooltip.add(lines.get(i).getString()); // line 0 is the name
+		o.add("tooltip", tooltip);
+		DataComponentPatch patch = s.getComponentsPatch();
+		if (!patch.isEmpty()) {
+			DataComponentPatch.CODEC.encodeStart(p.registryAccess().createSerializationContext(JsonOps.INSTANCE), patch)
+					.result().ifPresent(json -> o.add("components", json));
 		}
 		return o;
 	}

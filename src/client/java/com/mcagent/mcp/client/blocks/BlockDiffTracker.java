@@ -148,8 +148,8 @@ public final class BlockDiffTracker {
 		Minecraft mc = Minecraft.getInstance();
 		ClientLevel level = mc.level;
 		if (level == null || mc.player == null) return;
-		worldMinY = level.getMinY();
-		worldMaxY = level.getMaxY();
+		worldMinY = level.getMinBuildHeight();
+		worldMaxY = level.getMaxBuildHeight();
 
 		BlockPos p = mc.player.blockPosition();
 		int nx = ((p.getX() - radius) >> 4) << 4;

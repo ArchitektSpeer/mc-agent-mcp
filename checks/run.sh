@@ -21,12 +21,15 @@ cd "$(dirname "$0")/.."
 ROOT="$PWD"
 OUT="$ROOT/.harness/classes"
 JARS=""
-GSON=$(find "$ROOT/.gradle-home" -name 'gson-*.jar' ! -name '*sources*' 2>/dev/null | sort -V | tail -1)
-SLF4J=$(find "$ROOT/.gradle-home" -name 'slf4j-api-*.jar' ! -name '*sources*' 2>/dev/null | sort -V | tail -1)
-export GRADLE_USER_HOME="$ROOT/.gradle-home"
-unset JAVA_HOME
+GHOME="${GRADLE_USER_HOME:-$HOME/.gradle}"
+GSON=$(find "$GHOME/caches/modules-2" -path '*/com.google.code.gson/gson/*' -name 'gson-*.jar' ! -name '*sources*' 2>/dev/null | sort -V | tail -1)
+SLF4J=$(find "$GHOME/caches/modules-2" -name 'slf4j-api-*.jar' ! -name '*sources*' 2>/dev/null | sort -V | tail -1)
 
-JDK21="$ROOT/.jdk21/bin"
+# A JDK 21 for both Gradle and the standalone checks: ./.jdk21, else $JAVA_HOME.
+if [ -x "$ROOT/.jdk21/bin/javac" ]; then
+	export JAVA_HOME="$ROOT/.jdk21"
+fi
+JDK21="${JAVA_HOME:-}/bin"
 if [ ! -x "$JDK21/javac" ]; then
 	echo "!! JDK 21 not found at $JDK21 (needed for the standalone checks)" >&2
 	exit 2
@@ -60,17 +63,17 @@ run_test() { # name, source, classpath
 
 run_test "2/10 MCP protocol"      ProtocolTest.java   "build/classes/java/main:$GSON:$SLF4J"
 run_test "3/10 SSE push"          SseSelfTest.java    "build/classes/java/main:$GSON:$SLF4J"
-run_test "4/10 block codec"       CodecTest.java      "build/classes/java/client:$GSON"
-run_test "5/10 change detection"  DiffLogicTest.java  "build/classes/java/client:$GSON"
-run_test "6/10 tool arguments"    ArgsTest.java       "build/classes/java/client:build/classes/java/main:$GSON"
-run_test "7/10 inventory logic"   InventoryMathTest.java "build/classes/java/client"
+run_test "4/10 block codec"       CodecTest.java      "build/classes/java/main:$GSON"
+run_test "5/10 change detection"  DiffLogicTest.java  "build/classes/java/main:$GSON"
+run_test "6/10 tool arguments"    ArgsTest.java       "build/classes/java/main:$GSON"
+run_test "7/10 inventory logic"   InventoryMathTest.java "build/classes/java/main"
 run_test "8/10 permissions+limits" PolicyTest.java   "build/classes/java/main:$GSON:$SLF4J"
-run_test "9/10 reflex decisions"  ReflexMathTest.java "build/classes/java/client"
+run_test "9/10 reflex decisions"  ReflexMathTest.java "build/classes/java/main"
 
-# Loading the client tools requires the mapped Minecraft jars.
-MC_COMMON=$(find "$ROOT/.gradle-home/caches/fabric-loom/minecraftMaven" -path '*minecraft-common/*' -name '*.jar' ! -name '*sources*' 2>/dev/null | sort -V | tail -1)
-MC_CLIENT=$(find "$ROOT/.gradle-home/caches/fabric-loom/minecraftMaven" -path '*minecraft-clientonly/*' -name '*.jar' ! -name '*sources*' 2>/dev/null | sort -V | tail -1)
-run_test "10/10 tool schemas"      ToolSchemaTest.java "build/classes/java/client:build/classes/java/main:$MC_COMMON:$MC_CLIENT:$GSON:$SLF4J"
+# Loading the client tools requires the Minecraft classes (ModDevGradle's merged NeoForge jar).
+MC=$(find "$ROOT/build/moddev/artifacts" -name 'neoforge-*-merged.jar' 2>/dev/null | sort -V | tail -1)
+DFU=$(find "$GHOME/caches/modules-2" -path '*/com.mojang/datafixerupper/*' -name 'datafixerupper-*.jar' ! -name '*sources*' 2>/dev/null | sort -V | tail -1)
+run_test "10/10 tool schemas"      ToolSchemaTest.java "build/classes/java/main:$MC:$DFU:$GSON:$SLF4J"
 
 echo
 if [ "$FAILED" -eq 0 ]; then

@@ -2,7 +2,10 @@
 
 [English](README.md) | **简体中文**
 
-一个 **Minecraft Fabric 模组**：在游戏客户端里运行 **MCP（Model Context Protocol）服务器**，
+> **本分支是 NeoForge 1.21.1 移植版。** Fabric 1.21.11 版本在 `main` 分支。
+> 移植版另外新增了 `inspect_block` 和 `get_inventory detail=true`（见[工具](#工具)）。
+
+一个 **Minecraft NeoForge 模组**：在游戏客户端里运行 **MCP（Model Context Protocol）服务器**，
 让 AI 智能体（Claude、DeepSeek 或任何 MCP 客户端）能看到世界并自己玩生存模式：走路、挖矿、
 建造、战斗、进食、合成、熔炼、使用箱子和聊天。
 
@@ -11,15 +14,15 @@
 
 | | |
 |---|---|
-| 游戏 | Minecraft `1.21.11`（Java 21） |
-| 加载器 | Fabric Loader `0.19.5` + Fabric API `0.141.6` |
+| 游戏 | Minecraft `1.21.1`（Java 21） |
+| 加载器 | NeoForge `21.1.262` |
 | 传输 | MCP *Streamable HTTP*，地址 `http://127.0.0.1:27890/mcp`，Bearer 令牌认证 |
 | 协议 | MCP `2025-06-18`（工具、服务器 instructions、SSE 通知） |
 | 运行端 | 仅客户端：操控的是**你自己的**玩家，单人和多人服务器都可用 |
 
 ## 功能
 
-- **29 个工具**，覆盖感知、移动、交互、物品栏、合成和聊天（[工具列表](#工具)）。
+- **30 个工具**，覆盖感知、移动、交互、物品栏、合成和聊天（[工具列表](#工具)）。
 - **为慢模型准备的生存反射**：模组每 tick（50 毫秒）自动防御、躲避苦力怕、进食、穿护甲、上浮换气，
   每轮要思考几秒的智能体不会在思考时被打死（[详情](#生存反射)）。
 - **为大模型设计**：可直接阅读的 ASCII 方块地图、按距离排序的实体列表、能告诉你是否需要工作台的
@@ -31,11 +34,10 @@
 
 ## 快速开始
 
-1. 安装 1.21.11 的 [Fabric Loader](https://fabricmc.net/use/) 和
-   [Fabric API](https://modrinth.com/mod/fabric-api)。
-2. 从 [Releases](https://github.com/ArchitektSpeer/mc-agent-mcp/releases/latest) 下载 `mc-agent-mcp-<version>.jar`（或自己构建），放进 `.minecraft/mods/`：
+1. 安装 Minecraft 1.21.1 的 [NeoForge](https://neoforged.net/) `21.1.262`（或更新的 21.1.x）。
+2. 构建 jar（需要 JDK 21，Gradle 也要用它运行），放进 `.minecraft/mods/`：
    ```bash
-   ./gradlew build        # -> build/libs/mc-agent-mcp-<version>.jar
+   ./gradlew build        # -> build/libs/mc-agent-mcp-<version>-neoforge.jar
    ```
 3. 启动一次游戏。模组会生成带随机 `authToken` 的 `config/mcagent.json`，并在日志里打印地址。
 4. 连接 MCP 客户端：
@@ -158,7 +160,8 @@ call '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"get_blocks
 | `scan_blocks` | perception 感知 | 在半径内查找指定方块（矿石等） |
 | `subscribe_blocks` / `get_block_changes` | perception 感知 | 追踪玩家周围的方块变化（SSE 推送或轮询） |
 | `get_entities` | perception 感知 | 附近的生物、玩家、掉落物，按距离排序，带 id、生命值、`hostile` |
-| `get_inventory` | perception 感知 | 非空格子（0-8 快捷栏，9-35 背包，36-39 护甲，40 副手） |
+| `get_inventory` | perception 感知 | 非空格子（0-8 快捷栏，9-35 背包，36-39 护甲，40 副手）；`detail=true` 时每个物品附带名称、提示文字和非默认数据组件 |
+| `inspect_block` | perception 感知 | 读取单个方块的全部信息：id、所有方块状态属性、客户端已知的方块实体数据 |
 | `get_chat` | perception 感知 | 收到的聊天和系统消息，可用 `afterSeq` 增量读取 |
 | `get_container` | perception 感知 | 当前打开的界面（箱子、熔炉、工作台、自己的背包），按格子和分区列出 |
 | `get_recipes` | perception 感知 | 已解锁的配方：原料、合成站、当前能否合成 |
@@ -282,7 +285,7 @@ transfer_items {to:"player", item:"iron_ingot"}    -> 取出产物
 ## 设计说明
 
 - **线程**：HTTP 线程只做校验和路由。所有世界访问都在客户端主线程执行（`GameBridge`）；
-  多 tick 动作由 `END_CLIENT_TICK` 驱动，HTTP 线程等待一个 future。SSE 流使用独立线程。
+  多 tick 动作由 `ClientTickEvent.Post` 驱动，HTTP 线程等待一个 future。SSE 流使用独立线程。
 - **扫描**直接遍历 `LevelChunkSection` 并跳过空段，而不是对每个格子调用 `getBlockState`。
 - **变化检测**同时挂钩 `ClientLevel.setBlock`（客户端预测）和 `setServerVerifiedBlockState`
   （服务器更新，它会绕过 `setBlock`），标记区块为脏，只重扫该区块。快照是稀疏的；方块状态是
@@ -335,26 +338,25 @@ checks/                       离线测试套件
 | `InventoryMathTest` | 转移时的整组选择、2x2 与 3x3 网格适配、物品 id 规范化 |
 | `PolicyTest` | 令牌桶计时（假时钟）、权限、控制类豁免、配置解析与往返、反射设置 |
 | `ReflexMathTest` | 武器 DPS 排序、食物选择（按缺口、不安全/珍贵食物）、护甲等级 |
-| `ToolSchemaTest` | 全部 29 个工具：名称唯一、类别已设置、JSON Schema 格式正确 |
+| `ToolSchemaTest` | 全部 30 个工具：名称唯一、类别已设置、JSON Schema 格式正确 |
 
 ### 实机测试
 
 离线测试覆盖不到运行时的 Mixin 和真实玩法。可以启动本地离线服务器加开发客户端：
 
 ```bash
-# 1. 服务器（Loom 已缓存 jar），超平坦，和平难度
-mkdir -p /tmp/mcsrv && cd /tmp/mcsrv
-cp <仓库目录>/.gradle-home/caches/fabric-loom/1.21.11/minecraft-server.jar .   # 或 ~/.gradle/caches/...
-echo eula=true > eula.txt
-printf 'online-mode=false\nserver-port=25599\nlevel-type=minecraft\\:flat\ndifficulty=peaceful\nspawn-protection=0\n' > server.properties
-java -jar minecraft-server.jar --nogui     # 控制台可用 /give、/setblock、/summon 布置场景
-
-# 2. 开发客户端（先在 run/options.txt 里设 onboardAccessibility:false，否则快速加入会卡住）
-./gradlew runClient --args="--quickPlayMultiplayer 127.0.0.1:25599"
+./gradlew runClient
 ```
 
-然后按 curl 冒烟测试的方式调用工具，令牌在 `run/config/mcagent.json` 里。所有工具都已在生存模式下
-用这种方式实测过。
+也可以把 jar 放进其他模组 NeoForge 开发工作区的 `run/mods/`，启动那个工作区的开发客户端来操控该模组。
+ModDevGradle 没有 `--args`；想直接进入世界，在客户端运行配置的 `programArguments` 里加上
+`--quickPlaySingleplayer <存档名>`（或 `--quickPlayMultiplayer 主机:端口`）。在 `run/config/mcagent.json`
+里设 `"allowCommands": true`，就能用 `/give`、`/setblock`、`/fill` 布置测试场景。
+
+然后按 curl 冒烟测试的方式调用工具，令牌在 `run/config/mcagent.json` 里。Fabric 版的所有工具都已在
+生存模式下用这种方式实测过。NeoForge 移植版通过了离线检查，并在游戏里实测了 `observe`、`chat`（指令）、
+`get_chat`、`get_inventory`（含 `detail`）、`inspect_block`、`select_slot`、`use_item`、`interact_block`、
+`break_block`、`go_to` 和 `get_entities`；其余工具能在 1.21.1 上编译，但还没有实机测试。
 
 ## 路线图
 
@@ -370,4 +372,4 @@ java -jar minecraft-server.jar --nogui     # 控制台可用 /give、/setblock�
 
 ## 许可证
 
-MIT。Fabric Loader/Loom 为 Apache-2.0，MCP 规范和 SDK 为 MIT。Baritone（LGPL）只会作为可选的外部依赖。
+MIT。NeoForge 为 LGPL-2.1（仅作运行时依赖），MCP 规范和 SDK 为 MIT。Baritone（LGPL）只会作为可选的外部依赖。

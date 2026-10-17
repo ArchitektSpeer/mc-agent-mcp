@@ -8,7 +8,7 @@ import com.mcagent.mcp.tools.McpTool;
 import com.mcagent.mcp.tools.Schema;
 import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.world.entity.player.Input;
+import com.mcagent.mcp.client.control.Input;
 
 import java.util.concurrent.CompletableFuture;
 

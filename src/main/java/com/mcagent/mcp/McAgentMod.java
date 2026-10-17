@@ -1,6 +1,6 @@
 package com.mcagent.mcp;
 
-import net.fabricmc.api.ModInitializer;
+import net.neoforged.fml.common.Mod;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -9,12 +9,12 @@ import org.slf4j.LoggerFactory;
  * (see com.mcagent.mcp.client.McAgentClient); this class only holds
  * shared constants and the logger.
  */
-public class McAgentMod implements ModInitializer {
+@Mod(McAgentMod.MOD_ID)
+public class McAgentMod {
 	public static final String MOD_ID = "mcagent";
 	public static final Logger LOGGER = LoggerFactory.getLogger("mc-agent-mcp");
 
-	@Override
-	public void onInitialize() {
+	public McAgentMod() {
 		LOGGER.info("MC Agent MCP loaded (common).");
 	}
 }

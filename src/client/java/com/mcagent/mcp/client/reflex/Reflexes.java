@@ -18,14 +18,14 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.monster.Creeper;
 import net.minecraft.world.entity.monster.Enemy;
 import net.minecraft.world.entity.monster.RangedAttackMob;
-import net.minecraft.world.entity.player.Input;
+import com.mcagent.mcp.client.control.Input;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.food.FoodProperties;
 import net.minecraft.world.inventory.ClickType;
 import net.minecraft.world.inventory.InventoryMenu;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.equipment.Equippable;
+import net.minecraft.world.item.ArmorItem;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -178,7 +178,7 @@ public final class Reflexes {
 			if (d > CREEPER_DANGER) return; // list is nearest first
 			AgentControl.lookAt(p, c.getBoundingBox().getCenter());
 			boolean hit = false;
-			if (allowed("attack_entity", ToolCategory.INTERACTION) && p.isWithinEntityInteractionRange(c, 0)
+			if (allowed("attack_entity", ToolCategory.INTERACTION) && p.canInteractWithEntity(c, 0)
 					&& p.getAttackStrengthScale(0.5f) >= 0.9f) {
 				selectWeapon(p);
 				mc.gameMode.attack(p, c);
@@ -208,7 +208,7 @@ public final class Reflexes {
 		Entity target = null;
 		for (Entity e : hostiles) {
 			if (e instanceof Creeper) continue; // handled by evadeCreepers
-			if (p.isWithinEntityInteractionRange(e, 0)) {
+			if (p.canInteractWithEntity(e, 0)) {
 				target = e;
 				break;
 			}
@@ -276,7 +276,7 @@ public final class Reflexes {
 	private void resetCombat(LocalPlayer p) {
 		resetCombat();
 		if (restoreSlot >= 0 && eating == 0) {
-			p.getInventory().setSelectedSlot(restoreSlot);
+			p.getInventory().selected = restoreSlot;
 			restoreSlot = -1;
 		}
 	}
@@ -285,9 +285,9 @@ public final class Reflexes {
 		if (!allowed("select_slot", ToolCategory.INVENTORY)) return;
 		Inventory inv = p.getInventory();
 		int best = ReflexMath.bestWeapon(hotbar(inv));
-		if (best >= 0 && best != inv.getSelectedSlot()) {
-			if (restoreSlot < 0) restoreSlot = inv.getSelectedSlot();
-			inv.setSelectedSlot(best);
+		if (best >= 0 && best != inv.selected) {
+			if (restoreSlot < 0) restoreSlot = inv.selected;
+			inv.selected = best;
 		}
 	}
 
@@ -302,7 +302,7 @@ public final class Reflexes {
 						? "ate (food " + eatFoodBefore + " -> " + now + ")"
 						: "eating was interrupted (food " + now + ")");
 				if (restoreSlot >= 0 && combatTicks == 0) {
-					p.getInventory().setSelectedSlot(restoreSlot);
+					p.getInventory().selected = restoreSlot;
 					restoreSlot = -1;
 				}
 			}
@@ -316,8 +316,8 @@ public final class Reflexes {
 		Inventory inv = p.getInventory();
 		int slot = ReflexMath.pickFood(hotbar(inv), food, p.getHealth());
 		if (slot < 0) return;
-		if (restoreSlot < 0) restoreSlot = inv.getSelectedSlot();
-		inv.setSelectedSlot(slot);
+		if (restoreSlot < 0) restoreSlot = inv.selected;
+		inv.selected = slot;
 		eatFoodBefore = food;
 		control.holdUse(mc, 40);
 		eating = 45;
@@ -337,8 +337,7 @@ public final class Reflexes {
 			for (Slot s : menu.slots) {
 				if (!(s.container instanceof Inventory) || s.getContainerSlot() >= 36) continue;
 				ItemStack st = s.getItem();
-				Equippable eq = st.get(DataComponents.EQUIPPABLE);
-				if (eq == null || eq.slot() != es) continue;
+				if (!(st.getItem() instanceof ArmorItem armor) || armor.getEquipmentSlot() != es) continue;
 				int tier = Math.max(1, ReflexMath.armorTier(itemId(st)));
 				if (tier > bestTier) {
 					bestTier = tier;

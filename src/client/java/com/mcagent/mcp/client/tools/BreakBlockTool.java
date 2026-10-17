@@ -63,7 +63,7 @@ public final class BreakBlockTool implements McpTool {
 			BlockState state = mc.level.getBlockState(pos);
 			if (state.isAir()) throw new ToolException("there is no block at " + pos.toShortString());
 			if (state.getDestroySpeed(mc.level, pos) < 0) throw new ToolException("block is unbreakable");
-			if (!p.isWithinBlockInteractionRange(pos, 0.0)) {
+			if (!p.canInteractWithBlock(pos, 0.0)) {
 				throw new ToolException("block is out of reach; move closer (within ~4.5 blocks of the eyes)");
 			}
 			return control.startBreak(mc, pos, AgentControl.faceToward(p, pos), maxTicks);

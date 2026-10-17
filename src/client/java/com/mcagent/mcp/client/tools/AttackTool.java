@@ -72,7 +72,7 @@ public final class AttackTool implements McpTool {
 			Entity target = mc.level.getEntity(id);
 			if (target == null || !target.isAlive()) throw new ToolException("no living entity with id " + id);
 			if (target == p) throw new ToolException("cannot target yourself");
-			if (!p.isWithinEntityInteractionRange(target, 0.0)) {
+			if (!p.canInteractWithEntity(target, 0.0)) {
 				throw new ToolException("entity is out of reach (distance "
 						+ Json.round2(Math.sqrt(p.distanceToSqr(target))) + "); move closer");
 			}
@@ -81,9 +81,9 @@ public final class AttackTool implements McpTool {
 			JsonObject o = new JsonObject();
 			if (interact) {
 				InteractionResult r = mc.gameMode.interact(p, target, hand);
-				if (r instanceof InteractionResult.Success) p.swing(hand);
+				if (r.shouldSwing()) p.swing(hand);
 				o.addProperty("success", r.consumesAction());
-				o.addProperty("result", r.getClass().getSimpleName());
+				o.addProperty("result", r.name());
 			} else {
 				o.addProperty("attackStrength", Json.round2(p.getAttackStrengthScale(0.5F)));
 				mc.gameMode.attack(p, target);

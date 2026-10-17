@@ -134,7 +134,7 @@ public final class PlaceBlockTool implements McpTool {
 						Direction.WEST, Direction.EAST, Direction.UP}) {
 					BlockPos support = pos.relative(d);
 					BlockState s = level.getBlockState(support);
-					if (!s.canBeReplaced() && p.isWithinBlockInteractionRange(support, 0.0)) {
+					if (!s.canBeReplaced() && p.canInteractWithBlock(support, 0.0)) {
 						hit = hitOn(support, d.getOpposite());
 						break;
 					}
@@ -143,13 +143,13 @@ public final class PlaceBlockTool implements McpTool {
 					throw new ToolException("no solid neighbor within reach to place against");
 				}
 			}
-			if (!p.isWithinBlockInteractionRange(hit.getBlockPos(), 0.0)) {
+			if (!p.canInteractWithBlock(hit.getBlockPos(), 0.0)) {
 				throw new ToolException("block is out of reach; move closer (within ~4.5 blocks of the eyes)");
 			}
 
 			AgentControl.lookAt(p, hit.getLocation());
 			InteractionResult result = mc.gameMode.useItemOn(p, hand, hit);
-			if (result instanceof InteractionResult.Success) {
+			if (result.shouldSwing()) {
 				p.swing(hand);
 			}
 			JsonObject o = new JsonObject();
@@ -165,7 +165,7 @@ public final class PlaceBlockTool implements McpTool {
 							? "the game refused the placement" : "the held item is not a block (" + Json.item(p.getItemInHand(hand)).get("id").getAsString() + ")");
 				}
 			}
-			o.addProperty("result", result.getClass().getSimpleName());
+			o.addProperty("result", result.name());
 			o.add("clicked", Json.pos(hit.getBlockPos()));
 			o.addProperty("face", hit.getDirection().getName());
 			o.addProperty("blockAtPos", BlockScanner.idOf(level.getBlockState(pos)));
@@ -205,7 +205,7 @@ public final class PlaceBlockTool implements McpTool {
 
 	/** Hit at the center of {@code face} of the block at {@code pos}. */
 	private static BlockHitResult hitOn(BlockPos pos, Direction face) {
-		Vec3 loc = Vec3.atCenterOf(pos).add(face.getUnitVec3().scale(0.5));
+		Vec3 loc = Vec3.atCenterOf(pos).add(Vec3.atLowerCornerOf(face.getNormal()).scale(0.5));
 		return new BlockHitResult(loc, face, pos, false);
 	}
 }

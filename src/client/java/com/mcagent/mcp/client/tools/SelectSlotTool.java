@@ -48,12 +48,12 @@ public final class SelectSlotTool implements McpTool {
 
 		return bridge.callOnGameThread(() -> {
 			LocalPlayer p = GameBridge.requirePlayer();
-			if (hasSlot) p.getInventory().setSelectedSlot(slot);
+			if (hasSlot) p.getInventory().selected = slot;
 			JsonObject o = new JsonObject();
 			if (!"none".equals(drop)) {
 				o.addProperty("dropped", p.drop("all".equals(drop)));
 			}
-			o.addProperty("selectedSlot", p.getInventory().getSelectedSlot());
+			o.addProperty("selectedSlot", p.getInventory().selected);
 			JsonObject held = Json.item(p.getMainHandItem());
 			if (held != null) o.add("mainHand", held);
 			return o;

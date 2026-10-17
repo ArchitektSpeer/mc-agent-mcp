@@ -9,7 +9,7 @@ import com.mcagent.mcp.tools.ToolCategory;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 
 import java.util.HashSet;
 import java.util.List;
@@ -102,7 +102,7 @@ public final class ScanBlocksTool implements McpTool {
 			String raw = el.getAsString().trim();
 			if (raw.isEmpty()) continue;
 			String name = raw.contains(":") ? raw : "minecraft:" + raw;
-			if (Identifier.tryParse(name) == null) {
+			if (ResourceLocation.tryParse(name) == null) {
 				throw new ToolException("invalid block id: " + raw);
 			}
 			wanted.add(name);

@@ -4,7 +4,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.registries.BuiltInRegistries;
-import net.minecraft.resources.Identifier;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
 import net.minecraft.world.level.chunk.LevelChunkSection;
@@ -44,8 +44,8 @@ public final class BlockScanner {
 		int emptySections = 0;
 		int unloadedChunks = 0;
 
-		int minYc = level.getMinY();
-		int maxYc = level.getMaxY();
+		int minYc = level.getMinBuildHeight();
+		int maxYc = level.getMaxBuildHeight();
 
 		for (int cz = minZ >> 4; cz <= (maxZ - 1) >> 4; cz++) {
 			for (int cx = minX >> 4; cx <= (maxX - 1) >> 4; cx++) {
@@ -56,7 +56,7 @@ public final class BlockScanner {
 
 				for (int syIdx = 0; syIdx < sections.length; syIdx++) {
 					LevelChunkSection section = sections[syIdx];
-					int secBaseY = level.getMinY() + syIdx * 16;
+					int secBaseY = level.getMinBuildHeight() + syIdx * 16;
 					// Intersect section with requested box on Y.
 					int y0 = Math.max(minY, secBaseY);
 					int y1 = Math.min(maxY, secBaseY + 16);
@@ -108,8 +108,8 @@ public final class BlockScanner {
 		long start = System.nanoTime();
 		Map<String, MatchGroup> groups = new HashMap<>();
 		int minX = center.getX() - radius, maxX = center.getX() + radius + 1;
-		int minY = Math.max(center.getY() - radius, level.getMinY());
-		int maxY = Math.min(center.getY() + radius + 1, level.getMaxY());
+		int minY = Math.max(center.getY() - radius, level.getMinBuildHeight());
+		int maxY = Math.min(center.getY() + radius + 1, level.getMaxBuildHeight());
 		int minZ = center.getZ() - radius, maxZ = center.getZ() + radius + 1;
 
 		for (int cz = minZ >> 4; cz <= (maxZ - 1) >> 4; cz++) {
@@ -121,7 +121,7 @@ public final class BlockScanner {
 				for (int syIdx = 0; syIdx < sections.length; syIdx++) {
 					LevelChunkSection section = sections[syIdx];
 					if (section == null || section.hasOnlyAir()) continue;
-					int secBaseY = level.getMinY() + syIdx * 16;
+					int secBaseY = level.getMinBuildHeight() + syIdx * 16;
 					int y0 = Math.max(minY, secBaseY), y1 = Math.min(maxY, secBaseY + 16);
 					if (y0 >= y1) continue;
 					int x0 = Math.max(minX, chunkBaseX), x1 = Math.min(maxX, chunkBaseX + 16);
@@ -152,7 +152,7 @@ public final class BlockScanner {
 	}
 
 	public static String idOf(BlockState state) {
-		Identifier id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
+		ResourceLocation id = BuiltInRegistries.BLOCK.getKey(state.getBlock());
 		return id == null ? "minecraft:air" : id.toString();
 	}
 

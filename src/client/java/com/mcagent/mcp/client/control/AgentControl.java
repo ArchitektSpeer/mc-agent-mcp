@@ -9,7 +9,6 @@ import net.minecraft.commands.arguments.EntityAnchorArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.InteractionHand;
-import net.minecraft.world.entity.player.Input;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.Vec3;
 
@@ -261,7 +260,7 @@ public final class AgentControl {
 	/** The face of {@code pos} that points toward the player's eyes. */
 	public static Direction faceToward(LocalPlayer player, BlockPos pos) {
 		Vec3 d = player.getEyePosition().subtract(Vec3.atCenterOf(pos));
-		return Direction.getApproximateNearest(d.x, d.y, d.z);
+		return Direction.getNearest(d.x, d.y, d.z);
 	}
 
 	private void cancelGoTo(LocalPlayer p, String reason) {
@@ -310,7 +309,7 @@ public final class AgentControl {
 			cancelBreak(mc, "timed out after " + t.maxTicks + " ticks (block still " + BlockScanner.idOf(state) + ")");
 			return;
 		}
-		if (!p.isWithinBlockInteractionRange(t.pos, 0.0)) {
+		if (!p.canInteractWithBlock(t.pos, 0.0)) {
 			cancelBreak(mc, "out of reach");
 			return;
 		}
